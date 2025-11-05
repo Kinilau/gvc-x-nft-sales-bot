@@ -821,10 +821,27 @@ def status_dashboard():
                 text-align: center;
                 margin-bottom: 3rem;
             }}
+            .logo {{
+                width: 120px;
+                height: 120px;
+                border-radius: 50%;
+                margin: 0 auto 1.5rem;
+                display: block;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+                border: 4px solid rgba(255,255,255,0.3);
+            }}
             .header h1 {{
                 font-size: 2.5rem;
+                margin-bottom: 0.25rem;
+                text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+                font-weight: 700;
+            }}
+            .header h2 {{
+                font-size: 1.8rem;
                 margin-bottom: 0.5rem;
                 text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+                font-weight: 500;
+                opacity: 0.95;
             }}
             .header p {{
                 font-size: 1.1rem;
@@ -930,7 +947,9 @@ def status_dashboard():
     <body>
         <div class="container">
             <div class="header">
-                <h1>🎨 NFT Sales Bot</h1>
+                <img src="/static/images/gvc-logo.jpg" alt="Good Vibes Club Logo" class="logo">
+                <h1>Good Vibes Club</h1>
+                <h2>NFT Sales Bot</h2>
                 <p>Automated NFT sales monitoring & Twitter posting</p>
                 <div class="status-badge">● {status_text}</div>
             </div>
@@ -1022,6 +1041,11 @@ def status_dashboard():
     </html>
     """
     return app.response_class(response=html, status=200, mimetype="text/html")
+
+@app.get("/static/<path:filename>")
+def serve_static(filename):
+    from flask import send_from_directory
+    return send_from_directory("static", filename)
 
 @app.get("/health")
 def health():
