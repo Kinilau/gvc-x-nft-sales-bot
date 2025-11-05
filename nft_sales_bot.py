@@ -306,9 +306,24 @@ def download_image_any(url_or_ipfs: str) -> Optional[Path]:
     for cand in ipfs_candidates(url_or_ipfs):
         b = _download_limited(cand)
         if b:
-            p = OUT_DIR / f"nft_{int(time.time()*1000)}.img"
-            p.write_bytes(b)
-            return p
+            try:
+                temp_p = OUT_DIR / f"nft_{int(time.time()*1000)}_temp.img"
+                temp_p.write_bytes(b)
+                
+                with Image.open(str(temp_p)) as img:
+                    img_rgb = img.convert("RGB")
+                    output_p = OUT_DIR / f"nft_{int(time.time()*1000)}.jpg"
+                    img_rgb.save(str(output_p), "JPEG", quality=95, optimize=True)
+                
+                try: temp_p.unlink(missing_ok=True)
+                except: pass
+                
+                return output_p
+            except (UnidentifiedImageError, OSError) as e:
+                log(f"image conversion failed for {cand}: {e}", "WARN")
+                try: temp_p.unlink(missing_ok=True)
+                except: pass
+                continue
     return None
 
 # -------------------------
