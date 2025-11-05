@@ -22,11 +22,8 @@ from flask import Flask, request, Response
 from requests_oauthlib import OAuth1
 from PIL import Image, ImageColor, UnidentifiedImageError
 
-# ================== Keyring & Secrets (align with vibestr_bot.py) ==================
-import keyring
+# ================== Replit Secrets (environment variables) ==================
 import argparse
-
-SERVICE = "nft-sales-bot"
 
 SECRET_KEYS_REQUIRED = [
     "X_APP_KEY",
@@ -36,45 +33,28 @@ SECRET_KEYS_REQUIRED = [
     "MORALIS_WEBHOOK_SECRET",
 ]
 SECRET_KEYS_OPTIONAL = [
-    "MORALIS_API_KEY",  # optional fallback if you later add Moralis REST calls
+    "MORALIS_API_KEY",
 ]
 
-def _secret_delete_all():
-    for k in SECRET_KEYS_REQUIRED + SECRET_KEYS_OPTIONAL:
-        try:
-            keyring.delete_password(SERVICE, k)
-        except keyring.errors.PasswordDeleteError:
-            pass
-        except Exception:
-            pass
-
-def ensure_secret(name: str, prompt: str, optional: bool = False) -> Optional[str]:
-    val = keyring.get_password(SERVICE, name)
+def get_secret(name: str, optional: bool = False) -> Optional[str]:
+    val = os.environ.get(name)
     if val is None and not optional:
-        val = input(f"{prompt}: ").strip()
-        keyring.set_password(SERVICE, name, val)
-        val = keyring.get_password(SERVICE, name)
-    elif val is None and optional:
-        return None
+        print(f"[WARNING] Required secret '{name}' is not set in environment variables.", flush=True)
+        print(f"[INFO] Please add '{name}' to Replit Secrets.", flush=True)
     return val
 
 # CLI flags
 _argparser = argparse.ArgumentParser(add_help=True)
-_argparser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8080")))
-_argparser.add_argument("--reset-secrets", action="store_true", help="Delete stored secrets and prompt to re-enter them")
+_argparser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "5000")))
 _args, _unknown = _argparser.parse_known_args()
 
-if _args.reset_secrets:
-    print("[secrets] Deleting stored secrets…", flush=True)
-    _secret_delete_all()
-
-# Prompt for secrets if missing (keyring is source of truth)
-X_APP_KEY       = ensure_secret("X_APP_KEY",       "X App Key (API Key)")
-X_APP_SECRET    = ensure_secret("X_APP_SECRET",    "X App Secret (API Key Secret)")
-X_ACCESS_TOKEN  = ensure_secret("X_ACCESS_TOKEN",  "X Access Token")
-X_ACCESS_SECRET = ensure_secret("X_ACCESS_SECRET", "X Access Token Secret")
-MORALIS_WEBHOOK_SECRET = ensure_secret("MORALIS_WEBHOOK_SECRET", "Moralis Streams Secret")
-MORALIS_API_KEY = ensure_secret("MORALIS_API_KEY", "Moralis API Key (optional)", optional=True)
+# Load secrets from environment variables (Replit Secrets)
+X_APP_KEY       = get_secret("X_APP_KEY")
+X_APP_SECRET    = get_secret("X_APP_SECRET")
+X_ACCESS_TOKEN  = get_secret("X_ACCESS_TOKEN")
+X_ACCESS_SECRET = get_secret("X_ACCESS_SECRET")
+MORALIS_WEBHOOK_SECRET = get_secret("MORALIS_WEBHOOK_SECRET")
+MORALIS_API_KEY = get_secret("MORALIS_API_KEY", optional=True)
 
 PORT = int(_args.port)
 
