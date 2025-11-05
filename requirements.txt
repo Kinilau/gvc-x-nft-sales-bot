@@ -6,3 +6,10 @@ pycryptodome>=3.19.0
 keyring>=24.3.0
 redis>=5.0.0
 gunicorn>=21.2.0
+Flask
+gunicorn
+Pillow
+pycryptodome
+redis
+requests
+requests-oauthlib
