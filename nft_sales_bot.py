@@ -614,7 +614,11 @@ def post_single_sale(contract: str, token_id: str, buyer: str, seller: str,
     meta = get_token_metadata_from_payload(contract, token_id, payload)
     token_name = token_display_name(meta, contract)
     url = opensea_asset_url(contract, token_id)
-    text = single_sale_text(token_name, f"#{token_id}", price_eth, price_usd, buyer, seller, url)
+    
+    if f"#{token_id}" in token_name:
+        text = single_sale_text(token_name, "", price_eth, price_usd, buyer, seller, url)
+    else:
+        text = single_sale_text(token_name, f"#{token_id}", price_eth, price_usd, buyer, seller, url)
 
     img_path = image_path_for_token(contract, token_id, payload)
     auth = oauth1()
