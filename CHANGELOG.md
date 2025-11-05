@@ -15,19 +15,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cleaned up requirements.txt and removed keyring dependency
 
 ### Added
-- Replit deployment configuration using Gunicorn WSGI server
+- Replit deployment configuration using Gunicorn WSGI server (4 workers)
 - Comprehensive replit.md documentation with setup instructions
 - Workflow configuration for automatic bot execution in Replit
 - Enhanced .gitignore with comprehensive Python patterns
 - Clear warning messages when required secrets are not set
 - README badges for Replit, Python, and Flask
 - CHANGELOG.md for version tracking
+- Production-ready deployment using VM configuration with Gunicorn
+
+### Fixed
+- **CRITICAL**: Background workers now start correctly in both development and production environments
+  - Workers previously only started when running `python nft_sales_bot.py` directly
+  - Fixed by moving worker initialization to module level (executes on import)
+  - Ensures Gunicorn deployments have functional job queue for webhook processing
 
 ### Improved
 - Documentation with Replit-specific setup instructions
 - Secret management with clearer error messages
 - Production deployment readiness with VM configuration
 - Developer experience with better organized codebase
+- Clear separation between development server (Flask) and production server (Gunicorn)
+- Added explicit documentation about Flask vs Gunicorn usage
 
 ### Security
 - Secrets now managed through Replit's encrypted secret storage

@@ -942,14 +942,15 @@ def dbg_sweep():
     return "queued", 202
 
 # -------------------------
-# Main
+# Initialize workers (for both dev and production)
+# -------------------------
+watching = ", ".join(sorted(COLLECTIONS)) if COLLECTIONS else "(all)"
+log(f"Watching collections: {watching}")
+_start_workers(JOB_WORKERS)
+
+# -------------------------
+# Main (development server only)
 # -------------------------
 if __name__ == "__main__":
-    watching = ", ".join(sorted(COLLECTIONS)) if COLLECTIONS else "(all)"
-    log(f"Watching collections: {watching}")
-    # start background workers
-    if not globals().get("_WORKERS"):
-        for i in range(max(1, JOB_WORKERS)):
-            t = threading.Thread(target=_worker_loop, args=(i+1,), daemon=True)
-            _WORKERS.append(t); t.start()
+    log("Starting Flask development server on 0.0.0.0:{PORT}".replace("{PORT}", str(PORT)))
     app.run(host="0.0.0.0", port=PORT, debug=False)

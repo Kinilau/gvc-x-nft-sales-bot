@@ -60,8 +60,19 @@ The bot starts automatically when you run the Repl. Once running:
 
 Click the **Deploy** button to publish your bot with:
 - 24/7 uptime for continuous webhook monitoring
-- Production-ready Gunicorn WSGI server
+- **Production-ready Gunicorn WSGI server** (4 workers)
 - Automatic scaling and reliability
+
+> **⚠️ Important: Development vs Production**
+> 
+> - **Development (Run button)**: Uses Flask's built-in development server for testing
+> - **Production (Deploy button)**: Uses Gunicorn WSGI server for production workloads
+> 
+> The deployment is already configured to use Gunicorn. When you click Deploy, your bot will automatically run with:
+> ```bash
+> gunicorn --bind 0.0.0.0:5000 --reuse-port -w 4 nft_sales_bot:app
+> ```
+> This provides multi-process concurrency and production-grade reliability for handling webhooks.
 
 ## Local Development
 
