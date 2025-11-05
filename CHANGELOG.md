@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cleaned up requirements.txt and removed keyring dependency
 
 ### Added
+- **Beautiful status dashboard** at root path (/) with live metrics display
+  - Real-time system status, uptime, workers, queue depth, and tweets posted
+  - Job statistics and performance metrics
+  - Modern glassmorphic design with purple gradient
+  - Responsive layout for all devices
 - Replit deployment configuration using Gunicorn WSGI server (4 workers)
 - Comprehensive replit.md documentation with setup instructions
 - Workflow configuration for automatic bot execution in Replit

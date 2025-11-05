@@ -770,8 +770,259 @@ def _start_workers(n: int):
         t.start()
 
 # -------------------------
-# Webhook routes
+# Status Dashboard & Routes
 # -------------------------
+@app.get("/")
+def status_dashboard():
+    with _METRICS_LOCK:
+        m = _METRICS.copy()
+        jp = m["jobs_processed_total"].copy()
+        jf = m["jobs_failed_total"].copy()
+    
+    uptime = int(max(0, time.time() - m["start_ts"]))
+    qsize = JOB_Q.qsize() if JOB_Q else 0
+    workers_ok = bool(_WORKERS) and (qsize < JOB_QUEUE_MAX)
+    status_color = "#10b981" if workers_ok else "#ef4444"
+    status_text = "Operational" if workers_ok else "Degraded"
+    idemp_backend = "Redis" if IDEMP.redis is not None else "In-Memory"
+    
+    def format_uptime(seconds):
+        days, remainder = divmod(seconds, 86400)
+        hours, remainder = divmod(remainder, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        if days > 0:
+            return f"{days}d {hours}h {minutes}m"
+        elif hours > 0:
+            return f"{hours}h {minutes}m"
+        else:
+            return f"{minutes}m {seconds}s"
+    
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>NFT Sales Bot - Status</title>
+        <style>
+            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+            body {{
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                padding: 2rem;
+                color: #fff;
+            }}
+            .container {{
+                max-width: 1200px;
+                margin: 0 auto;
+            }}
+            .header {{
+                text-align: center;
+                margin-bottom: 3rem;
+            }}
+            .header h1 {{
+                font-size: 2.5rem;
+                margin-bottom: 0.5rem;
+                text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+            }}
+            .header p {{
+                font-size: 1.1rem;
+                opacity: 0.9;
+            }}
+            .status-badge {{
+                display: inline-block;
+                background: {status_color};
+                padding: 0.5rem 1.5rem;
+                border-radius: 2rem;
+                font-weight: 600;
+                margin: 1rem 0;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            }}
+            .grid {{
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 1.5rem;
+                margin-bottom: 2rem;
+            }}
+            .card {{
+                background: rgba(255, 255, 255, 0.1);
+                backdrop-filter: blur(10px);
+                border-radius: 1rem;
+                padding: 1.5rem;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+            }}
+            .card h3 {{
+                font-size: 0.9rem;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                opacity: 0.8;
+                margin-bottom: 0.5rem;
+            }}
+            .card .value {{
+                font-size: 2rem;
+                font-weight: 700;
+                margin-bottom: 0.25rem;
+            }}
+            .card .label {{
+                font-size: 0.85rem;
+                opacity: 0.7;
+            }}
+            .section {{
+                background: rgba(255, 255, 255, 0.1);
+                backdrop-filter: blur(10px);
+                border-radius: 1rem;
+                padding: 2rem;
+                margin-bottom: 1.5rem;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+            }}
+            .section h2 {{
+                font-size: 1.5rem;
+                margin-bottom: 1.5rem;
+                border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+                padding-bottom: 0.5rem;
+            }}
+            .stat-row {{
+                display: flex;
+                justify-content: space-between;
+                padding: 0.75rem 0;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            }}
+            .stat-row:last-child {{
+                border-bottom: none;
+            }}
+            .stat-label {{
+                opacity: 0.8;
+            }}
+            .stat-value {{
+                font-weight: 600;
+            }}
+            .footer {{
+                text-align: center;
+                margin-top: 3rem;
+                opacity: 0.7;
+                font-size: 0.9rem;
+            }}
+            .endpoints {{
+                display: flex;
+                gap: 1rem;
+                flex-wrap: wrap;
+                margin-top: 1rem;
+            }}
+            .endpoint {{
+                background: rgba(255, 255, 255, 0.15);
+                padding: 0.5rem 1rem;
+                border-radius: 0.5rem;
+                font-family: monospace;
+                font-size: 0.85rem;
+            }}
+            .endpoint a {{
+                color: #fff;
+                text-decoration: none;
+            }}
+            .endpoint a:hover {{
+                text-decoration: underline;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>🎨 NFT Sales Bot</h1>
+                <p>Automated NFT sales monitoring & Twitter posting</p>
+                <div class="status-badge">● {status_text}</div>
+            </div>
+
+            <div class="grid">
+                <div class="card">
+                    <h3>Uptime</h3>
+                    <div class="value">{format_uptime(uptime)}</div>
+                    <div class="label">Running since startup</div>
+                </div>
+                <div class="card">
+                    <h3>Workers</h3>
+                    <div class="value">{len(_WORKERS)}</div>
+                    <div class="label">Background threads active</div>
+                </div>
+                <div class="card">
+                    <h3>Queue Depth</h3>
+                    <div class="value">{qsize}/{JOB_QUEUE_MAX}</div>
+                    <div class="label">Jobs in queue</div>
+                </div>
+                <div class="card">
+                    <h3>Tweets Posted</h3>
+                    <div class="value">{m['tweets_posted_total']}</div>
+                    <div class="label">Total sent to Twitter/X</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>📊 Job Statistics</h2>
+                <div class="stat-row">
+                    <span class="stat-label">Single Sales Processed</span>
+                    <span class="stat-value">{jp.get('single', 0)}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Sweep Sales Processed</span>
+                    <span class="stat-value">{jp.get('sweep', 0)}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Single Sales Failed</span>
+                    <span class="stat-value">{jf.get('single', 0)}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Sweep Sales Failed</span>
+                    <span class="stat-value">{jf.get('sweep', 0)}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Media Uploads</span>
+                    <span class="stat-value">{m['media_uploads_total']}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Media Upload Failures</span>
+                    <span class="stat-value">{m['media_uploads_failed_total']}</span>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>⚙️ System Information</h2>
+                <div class="stat-row">
+                    <span class="stat-label">Idempotency Backend</span>
+                    <span class="stat-value">{idemp_backend}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Collections Monitored</span>
+                    <span class="stat-value">{len(COLLECTIONS) if COLLECTIONS else "All"}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Job Queue Max</span>
+                    <span class="stat-value">{JOB_QUEUE_MAX}</span>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>🔗 API Endpoints</h2>
+                <div class="endpoints">
+                    <div class="endpoint"><a href="/health">/health</a></div>
+                    <div class="endpoint"><a href="/ready">/ready</a></div>
+                    <div class="endpoint"><a href="/metrics">/metrics</a></div>
+                    <div class="endpoint"><a href="/metrics/prom">/metrics/prom</a></div>
+                    <div class="endpoint">/webhook (POST)</div>
+                </div>
+            </div>
+
+            <div class="footer">
+                <p>NFT Sales Bot v2.0.0 • Powered by Moralis & Twitter/X API</p>
+                <p style="margin-top: 0.5rem; opacity: 0.6;">Auto-refresh this page to see live updates</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    return app.response_class(response=html, status=200, mimetype="text/html")
+
 @app.get("/health")
 def health():
     return "ok", 200
