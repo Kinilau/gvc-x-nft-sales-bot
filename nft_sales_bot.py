@@ -805,6 +805,9 @@ def status_dashboard():
     status_text = "Operational" if workers_ok else "Degraded"
     idemp_backend = "Redis" if IDEMP.redis is not None else "In-Memory"
     
+    is_production = len(_WORKERS) > 0 and os.environ.get("REPL_ID")
+    metrics_note = "Note: Multi-worker deployment - metrics show current worker only" if is_production else ""
+    
     def format_uptime(seconds):
         days, remainder = divmod(seconds, 86400)
         hours, remainder = divmod(remainder, 3600)
@@ -1054,6 +1057,7 @@ def status_dashboard():
             <div class="footer">
                 <p>NFT Sales Bot v2.0.0 • Powered by Moralis & Twitter/X API</p>
                 <p style="margin-top: 0.5rem; opacity: 0.6;">Auto-refresh this page to see live updates</p>
+                {f'<p style="margin-top: 0.5rem; opacity: 0.7; font-size: 0.85rem;">⚠️ {metrics_note}</p>' if metrics_note else ''}
             </div>
         </div>
     </body>
