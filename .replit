@@ -33,3 +33,11 @@ outputType = "webview"
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 33301
+externalPort = 3000
+
+[deployment]
+deploymentTarget = "vm"
+run = ["gunicorn", "--bind", "0.0.0.0:5000", "--reuse-port", "-w", "4", "nft_sales_bot:app"]
