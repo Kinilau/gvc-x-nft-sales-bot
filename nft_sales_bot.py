@@ -429,8 +429,9 @@ def build_breakdown_lines(items: List[Dict[str, Any]], with_seller: bool) -> Lis
 def sweep_text_prioritized(items: List[Dict[str, Any]], total_eth: Optional[float], total_usd: Optional[float],
                            buyer: str) -> str:
     count = len(items)
-    header_full   = f"{count} Citizens of Vibetown has sold for {fmt_eth(total_eth)} ({fmt_usd(total_usd)})"
-    header_comp   = f"{count} Citizens of Vibetown has sold for {fmt_eth(total_eth)} ({fmt_usd_compact(total_usd)})"
+    verb = "has" if count == 1 else "have"
+    header_full   = f"{count} Citizens of Vibetown {verb} sold for {fmt_eth(total_eth)} ({fmt_usd(total_usd)})"
+    header_comp   = f"{count} Citizens of Vibetown {verb} sold for {fmt_eth(total_eth)} ({fmt_usd_compact(total_usd)})"
     buyer_line    = f"Buyer: {shorten_addr(buyer)}"
 
     def assemble(header_line: str, breakdown: List[str]) -> str:
