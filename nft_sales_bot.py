@@ -204,12 +204,12 @@ IDEMP = IdempotencyStore(IDEMP_TTL_SECS)
 # Formatting helpers
 # -------------------------
 def fmt_eth(x: Optional[float]) -> str:
-    if x is None: 
+    if x is None or x <= 0.0001: 
         return f"N/A {ETH_SYM}"
     return f"{x:0.2f} {ETH_SYM}"
 
 def fmt_usd(x: Optional[float]) -> str:
-    if x is None: return "$N/A"
+    if x is None or x <= 0.01: return "$N/A"
     v = float(x)
     if v >= 1_000_000_000: return f"${v/1_000_000_000:0.2f}B"
     if v >= 1_000_000:     return f"${v/1_000_000:0.2f}M"
