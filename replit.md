@@ -6,13 +6,23 @@ An automated NFT sales bot that monitors blockchain transactions via Moralis web
 
 **Current State**: Fully configured and running in Replit environment. The Flask server is listening on port 5000 and ready to receive webhook events from Moralis.
 
-## Recent Changes (November 5, 2025)
+## Recent Changes (November 6, 2025)
+
+- **Fixed webhook signature verification** - Resolved 401 errors from Moralis webhooks
+- **Added Alchemy API fallback** - When Moralis doesn't provide NFT metadata/images, bot automatically fetches from Alchemy's public API
+- **Improved logging** - Added visibility into metadata fetching and image download process
+- Fixed grammar in sweep posts (plural "have sold" vs singular "has sold")
+- Fixed duplicate token ID display bug in tweet text
+- Added image format conversion (AVIF/WEBP/PNG → JPEG) for Twitter compatibility
+
+## Previous Changes (November 5, 2025)
 
 - Migrated from keyring-based secret management to Replit Secrets
 - Configured Flask app to run on 0.0.0.0:5000 for Replit environment
 - Set up workflow for automatic bot execution
 - Cleaned up requirements.txt and removed keyring dependency
 - Added Python .gitignore patterns
+- Deployed with Good Vibes Club branding and custom dashboard
 
 ## Project Architecture
 

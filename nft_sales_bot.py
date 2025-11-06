@@ -597,14 +597,51 @@ def token_display_name(meta: Dict[str, Any], default_collection: str) -> str:
     if coll: return coll
     return "Token"
 
+def fetch_metadata_from_alchemy(contract: str, token_id: str) -> Dict[str, Any]:
+    """Fallback: fetch NFT metadata from Alchemy's public API when Moralis doesn't provide it."""
+    try:
+        url = "https://eth-mainnet.g.alchemy.com/nft/v3/demo/getNFTMetadata"
+        params = {
+            "contractAddress": contract,
+            "tokenId": token_id,
+            "refreshCache": "false"
+        }
+        r = S.get(url, params=params, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            img_data = data.get("image", {})
+            image_url = (img_data.get("cachedUrl") or 
+                        img_data.get("originalUrl") or 
+                        img_data.get("thumbnailUrl"))
+            
+            return {
+                "token_address": contract,
+                "token_id": token_id,
+                "name": data.get("name", ""),
+                "normalized_metadata": {
+                    "image": image_url
+                }
+            }
+    except Exception as e:
+        log(f"Alchemy API fallback failed for {contract} #{token_id}: {e}", "WARN")
+    return {}
+
 # -------------------------
 # Posting flows
 # -------------------------
 def image_path_for_token(contract: str, token_id: str, payload: Dict[str, Any]) -> Optional[Path]:
     meta = get_token_metadata_from_payload(contract, token_id, payload)
     img = resolve_image_url_from_meta(meta)
+    
     if not img:
+        log(f"No image in Moralis metadata for {contract} #{token_id}, trying Alchemy fallback", "INFO")
+        meta = fetch_metadata_from_alchemy(contract, token_id)
+        img = resolve_image_url_from_meta(meta)
+        
+    if not img:
+        log(f"No image URL found for {contract} #{token_id} after fallback", "WARN")
         return None
+    
     return download_image_any(img)
 
 def post_single_sale(contract: str, token_id: str, buyer: str, seller: str,
