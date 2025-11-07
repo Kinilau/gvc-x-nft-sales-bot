@@ -1212,6 +1212,12 @@ def moralis_webhook():
         if IDEMP.seen(tx, buyer, token_address):
             log(f"skip duplicate {tx[:10]}… {shorten_addr(buyer)} {token_address[:8]}…", "INFO")
             continue
+        
+        tx_value = estimate_tx_total_eth(payload, tx)
+        if tx_value is None or tx_value < 0.001:
+            log(f"skip transfer (no ETH payment): {tx[:10]}… {shorten_addr(buyer)} {len(items)} NFT(s)", "INFO")
+            continue
+        
         IDEMP.mark(tx, buyer, token_address)
 
         items_sorted = sorted(items, key=lambda z: int(z["token_id"]))
@@ -1228,7 +1234,7 @@ def moralis_webhook():
                 try: price_eth = int(it["value"]) / 1e18
                 except: price_eth = None
             if price_eth is None:
-                price_eth = estimate_tx_total_eth(payload, tx)
+                price_eth = tx_value
             ok = _push_job(PostJob(kind="single", data={
                 "contract": it["token_address"], "token_id": it["token_id"],
                 "buyer": buyer, "seller": it["from"],

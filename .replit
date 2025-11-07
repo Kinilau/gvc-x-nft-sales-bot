@@ -38,6 +38,10 @@ externalPort = 80
 localPort = 32967
 externalPort = 3000
 
+[[ports]]
+localPort = 44975
+externalPort = 3001
+
 [deployment]
 deploymentTarget = "vm"
 run = ["gunicorn", "--bind", "0.0.0.0:5000", "--reuse-port", "-w", "4", "nft_sales_bot:app"]

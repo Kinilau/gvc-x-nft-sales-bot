@@ -8,10 +8,11 @@ An automated NFT sales bot that monitors blockchain transactions via Moralis web
 
 ## Recent Changes (November 6, 2025)
 
+- **Added sales-only filtering** - Bot now only posts NFT sales with ETH payment (≥0.001 ETH), ignoring free transfers, gifts, and airdrops
 - **Fixed webhook signature verification** - Resolved 401 errors from Moralis webhooks
 - **Added Alchemy API fallback** - When Moralis doesn't provide NFT metadata/images, bot automatically fetches from Alchemy's public API
 - **Fixed price display for marketplace sales** - Shows "N/A" instead of "$0.00" when exact sale price is unavailable (common with OpenSea/marketplace sales where payment is in separate transaction)
-- **Improved logging** - Added visibility into metadata fetching and image download process
+- **Improved logging** - Added visibility into metadata fetching, image download process, and skipped transfers
 - Fixed grammar in sweep posts (plural "have sold" vs singular "has sold")
 - Fixed duplicate token ID display bug in tweet text
 - Added image format conversion (AVIF/WEBP/PNG → JPEG) for Twitter compatibility
