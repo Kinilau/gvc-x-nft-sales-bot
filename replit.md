@@ -6,9 +6,13 @@ An automated NFT sales bot that monitors blockchain transactions via Moralis web
 
 **Current State**: Fully configured and running in Replit environment. The Flask server is listening on port 5000 and ready to receive webhook events from Moralis.
 
-## Recent Changes (November 6, 2025)
+## Recent Changes (November 7, 2025)
 
+- **Fixed token name display** - Single sales now show "Citizen of Vibetown #X has sold..." instead of generic "Token #X has sold..."
 - **Added sales-only filtering** - Bot now only posts NFT sales with ETH payment (≥0.001 ETH), ignoring free transfers, gifts, and airdrops
+
+## Previous Changes (November 6, 2025)
+
 - **Fixed webhook signature verification** - Resolved 401 errors from Moralis webhooks
 - **Added Alchemy API fallback** - When Moralis doesn't provide NFT metadata/images, bot automatically fetches from Alchemy's public API
 - **Fixed price display for marketplace sales** - Shows "N/A" instead of "$0.00" when exact sale price is unavailable (common with OpenSea/marketplace sales where payment is in separate transaction)

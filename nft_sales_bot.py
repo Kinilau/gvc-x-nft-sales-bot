@@ -595,6 +595,9 @@ def token_display_name(meta: Dict[str, Any], default_collection: str) -> str:
     coll = (meta.get("collectionTitle") or meta.get("collection_name") or meta.get("collection") or "").strip()
     if nm: return nm
     if coll: return coll
+    
+    if default_collection.lower() == "0xb8ea78fcacef50d41375e44e6814ebba36bb33c4":
+        return "Citizen of Vibetown"
     return "Token"
 
 def fetch_metadata_from_alchemy(contract: str, token_id: str) -> Dict[str, Any]:
