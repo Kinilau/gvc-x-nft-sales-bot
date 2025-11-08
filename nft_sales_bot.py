@@ -22,6 +22,11 @@ from flask import Flask, request, Response
 from requests_oauthlib import OAuth1
 from PIL import Image, ImageColor, UnidentifiedImageError
 
+# Custom exceptions
+class RateLimitError(Exception):
+    """Raised when Twitter API rate limit is hit (HTTP 429)"""
+    pass
+
 # ================== Replit Secrets (environment variables) ==================
 import argparse
 
@@ -77,6 +82,10 @@ COLLAGE_JPEG_QUALITY = int(os.environ.get("COLLAGE_JPEG_QUALITY", "90"))
 # Async workers
 JOB_WORKERS = int(os.environ.get("JOB_WORKERS", "3"))
 JOB_QUEUE_MAX = int(os.environ.get("JOB_QUEUE_MAX", "200"))
+
+# Rate limit retry settings
+RATE_LIMIT_RETRY_DELAY_MINS = int(os.environ.get("RATE_LIMIT_RETRY_DELAY_MINS", "15"))
+RATE_LIMIT_MAX_RETRIES = int(os.environ.get("RATE_LIMIT_MAX_RETRIES", "10"))
 
 # Parallelism inside a job
 UPLOAD_THREADS = int(os.environ.get("UPLOAD_THREADS", "4"))     # ≤ 4 media per tweet
@@ -504,6 +513,9 @@ def post_tweet_v2(auth: OAuth1, text: str, media_ids: Optional[List[str]]) -> bo
     if media_ids:
         payload["media"] = {"media_ids": media_ids}
     r = S.post(url, auth=auth, json=payload, timeout=HTTP_TIMEOUT)
+    if r.status_code == 429:
+        log(f"/2/tweets rate limited [429]: {r.text}", "WARN")
+        raise RateLimitError(f"Twitter API rate limit hit: {r.text}")
     if r.status_code not in (200, 201):
         log(f"/2/tweets failed [{r.status_code}]: {r.text}", "ERROR")
         return False
@@ -800,6 +812,17 @@ def _run_job(job: PostJob):
             _m_inc(("jobs_processed_total","sweep"))
         else:
             log(f"unknown job kind: {job.kind}", "WARN")
+    except RateLimitError as e:
+        job.attempts += 1
+        _m_inc(("jobs_retried_total", job.kind if job.kind in ("single","sweep") else "single"))
+        if job.attempts < RATE_LIMIT_MAX_RETRIES:
+            delay_secs = RATE_LIMIT_RETRY_DELAY_MINS * 60
+            log(f"Rate limited ({job.kind}), retrying in {RATE_LIMIT_RETRY_DELAY_MINS} minutes (attempt {job.attempts}/{RATE_LIMIT_MAX_RETRIES})", "WARN")
+            time.sleep(delay_secs)
+            _push_job(job)
+        else:
+            _m_inc(("jobs_failed_total", job.kind if job.kind in ("single","sweep") else "single"))
+            log(f"Job permanently failed after {job.attempts} rate limit retries: {e}", "ERROR")
     except Exception as e:
         job.attempts += 1
         _m_inc(("jobs_retried_total", job.kind if job.kind in ("single","sweep") else "single"))

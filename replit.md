@@ -8,6 +8,7 @@ An automated NFT sales bot that monitors blockchain transactions via Moralis web
 
 ## Recent Changes (November 7, 2025)
 
+- **Added rate limit retry queue** - When Twitter rate limits are hit (HTTP 429), bot now automatically retries after 15 minutes (configurable) instead of failing permanently. Supports up to 10 retry attempts.
 - **Fixed token name display** - Single sales now show "Citizen of Vibetown #X has sold..." instead of generic "Token #X has sold..."
 - **Added sales-only filtering** - Bot now only posts NFT sales with ETH payment (≥0.001 ETH), ignoring free transfers, gifts, and airdrops
 
@@ -113,6 +114,10 @@ Set these in the Replit Secrets or Environment Variables (not sensitive):
 - `JOB_QUEUE_MAX` - Max jobs in queue (default: 200)
 - `UPLOAD_THREADS` - Parallel media uploads (default: 4)
 - `DOWNLOAD_THREADS` - Parallel image downloads (default: 6)
+
+### Rate Limit Handling
+- `RATE_LIMIT_RETRY_DELAY_MINS` - Minutes to wait before retrying after Twitter rate limit (default: 15)
+- `RATE_LIMIT_MAX_RETRIES` - Max retry attempts for rate-limited tweets (default: 10)
 
 ### Storage & Caching
 - `OUTPUT_DIR` - Directory for temporary images (default: ./out)
