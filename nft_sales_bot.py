@@ -615,7 +615,7 @@ def fetch_weth_from_etherscan(tx_hash: str) -> Optional[float]:
             return None
         
         if data.get("result") and data["result"].get("logs"):
-            weth_total = 0
+            weth_transfers = []
             for log_entry in data["result"]["logs"]:
                 if log_entry.get("address", "").lower() == WETH_ADDRESS:
                     topics = log_entry.get("topics", [])
@@ -623,13 +623,15 @@ def fetch_weth_from_etherscan(tx_hash: str) -> Optional[float]:
                         value_hex = log_entry.get("data", "0x0")
                         try:
                             value_wei = int(value_hex, 16)
-                            weth_total += value_wei
+                            if value_wei > 0:
+                                weth_transfers.append(value_wei)
                         except ValueError:
                             continue
             
-            if weth_total > 0:
-                eth_value = weth_total / 1e18
-                log(f"Etherscan: Found WETH transfer {eth_value:.4f} ETH", "INFO")
+            if weth_transfers:
+                largest_transfer = max(weth_transfers)
+                eth_value = largest_transfer / 1e18
+                log(f"Etherscan: Found WETH transfer {eth_value:.4f} ETH (largest of {len(weth_transfers)} transfers)", "INFO")
                 return eth_value
         
         log(f"Etherscan: No WETH transfers found for tx {tx_hash[:10]}…", "INFO")
