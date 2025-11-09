@@ -591,12 +591,9 @@ def fetch_weth_from_etherscan(tx_hash: str) -> Optional[float]:
     try:
         url = "https://api.etherscan.io/api"
         params = {
-            "module": "account",
-            "action": "tokentx",
-            "contractaddress": WETH_ADDRESS,
-            "page": "1",
-            "offset": "100",
-            "sort": "asc"
+            "module": "proxy",
+            "action": "eth_getTransactionReceipt",
+            "txhash": tx_hash
         }
         
         log(f"Checking Etherscan for WETH transfers in tx {tx_hash[:10]}…", "INFO")
@@ -604,16 +601,23 @@ def fetch_weth_from_etherscan(tx_hash: str) -> Optional[float]:
         r.raise_for_status()
         data = r.json()
         
-        if data.get("status") == "1" and data.get("result"):
-            for transfer in data["result"]:
-                if transfer.get("hash", "").lower() == tx_hash.lower():
-                    value_str = transfer.get("value", "0")
-                    decimals = int(transfer.get("tokenDecimal", "18"))
-                    parsed = _parse_token_amount(value_str, decimals)
-                    if parsed:
-                        eth_value = parsed / 1e18
-                        log(f"Etherscan: Found WETH transfer {eth_value:.4f} ETH", "INFO")
-                        return eth_value
+        if data.get("result") and data["result"].get("logs"):
+            weth_total = 0
+            for log_entry in data["result"]["logs"]:
+                if log_entry.get("address", "").lower() == WETH_ADDRESS:
+                    topics = log_entry.get("topics", [])
+                    if len(topics) >= 1 and topics[0].startswith("0xddf252ad"):
+                        value_hex = log_entry.get("data", "0x0")
+                        try:
+                            value_wei = int(value_hex, 16)
+                            weth_total += value_wei
+                        except ValueError:
+                            continue
+            
+            if weth_total > 0:
+                eth_value = weth_total / 1e18
+                log(f"Etherscan: Found WETH transfer {eth_value:.4f} ETH", "INFO")
+                return eth_value
         
         log(f"Etherscan: No WETH transfers found for tx {tx_hash[:10]}…", "INFO")
         return None
