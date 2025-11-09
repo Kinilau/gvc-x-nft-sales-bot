@@ -9,6 +9,7 @@ An automated NFT sales bot that monitors blockchain transactions via Moralis web
 ## Recent Changes (November 9, 2025)
 
 - **Fixed WETH detection** - Bot now correctly detects sales paid in WETH (Wrapped ETH) instead of only native ETH. This fixes OpenSea and marketplace sales being incorrectly skipped.
+- **Added Etherscan API fallback** - When Moralis webhooks don't include ERC-20 transfer data, bot automatically checks Etherscan API for WETH transfers. This ensures all marketplace sales are captured regardless of webhook payload contents.
 
 ## Previous Changes (November 7, 2025)
 

@@ -585,11 +585,45 @@ def _parse_token_amount(value: Any, decimals: int = 18) -> Optional[int]:
         log(f"Failed to parse token amount {value}: {e}", "WARN")
     return None
 
+def fetch_weth_from_etherscan(tx_hash: str) -> Optional[float]:
+    """Fallback: Check Etherscan API for WETH transfers when Moralis doesn't provide ERC-20 data."""
+    WETH_ADDRESS = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+    try:
+        url = "https://api.etherscan.io/api"
+        params = {
+            "module": "account",
+            "action": "tokentx",
+            "contractaddress": WETH_ADDRESS,
+            "page": "1",
+            "offset": "100",
+            "sort": "asc"
+        }
+        
+        log(f"Checking Etherscan for WETH transfers in tx {tx_hash[:10]}…", "INFO")
+        r = S.get(url, params=params, timeout=HTTP_TIMEOUT)
+        r.raise_for_status()
+        data = r.json()
+        
+        if data.get("status") == "1" and data.get("result"):
+            for transfer in data["result"]:
+                if transfer.get("hash", "").lower() == tx_hash.lower():
+                    value_str = transfer.get("value", "0")
+                    decimals = int(transfer.get("tokenDecimal", "18"))
+                    parsed = _parse_token_amount(value_str, decimals)
+                    if parsed:
+                        eth_value = parsed / 1e18
+                        log(f"Etherscan: Found WETH transfer {eth_value:.4f} ETH", "INFO")
+                        return eth_value
+        
+        log(f"Etherscan: No WETH transfers found for tx {tx_hash[:10]}…", "INFO")
+        return None
+    except Exception as e:
+        log(f"Etherscan API error: {e}", "WARN")
+        return None
+
 def estimate_tx_total_eth(payload: Dict[str, Any], tx_hash: str) -> Optional[float]:
     WETH_ADDRESS = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
     vals = []
-    
-    log(f"estimate_tx_total_eth called for tx={tx_hash[:10]}…", "INFO")
     
     for k in ("txs", "transactions", "logs", "native_transactions"):
         for x in (payload.get(k) or []):
@@ -599,23 +633,15 @@ def estimate_tx_total_eth(payload: Dict[str, Any], tx_hash: str) -> Optional[flo
                 parsed = _parse_token_amount(v, 18)
                 if parsed is not None:
                     vals.append(parsed)
-                    log(f"Found native ETH: {parsed / 1e18:.4f} ETH", "INFO")
-    
-    erc20_count = len(payload.get("erc20Transfers", []))
-    log(f"Payload has {erc20_count} total erc20Transfers", "INFO")
     
     for k in ("erc20Transfers", "erc20_transfers", "tokenTransfers"):
         transfers = payload.get(k) or []
-        if transfers:
-            log(f"Checking {len(transfers)} ERC-20 transfers (key={k}) for tx {tx_hash[:10]}…", "INFO")
         for t in transfers:
             h = (t.get("transaction_hash") or t.get("transactionHash") or "").lower()
             token_addr = (t.get("address") or t.get("token_address") or t.get("contract") or "").lower()
-            log(f"ERC-20 transfer: tx={h[:10]}… token={token_addr[:10]}… WETH={WETH_ADDRESS[:10]}…", "INFO")
             if h == tx_hash.lower() and token_addr == WETH_ADDRESS:
                 v = t.get("value") or t.get("valueWithDecimals")
                 decimals_raw = t.get("tokenDecimals") or t.get("decimals") or 18
-                log(f"WETH transfer found! value={v} decimals={decimals_raw} full_data={json.dumps(t)[:200]}", "INFO")
                 try:
                     decimals = int(decimals_raw)
                 except (ValueError, TypeError):
@@ -623,15 +649,15 @@ def estimate_tx_total_eth(payload: Dict[str, Any], tx_hash: str) -> Optional[flo
                 parsed = _parse_token_amount(v, decimals)
                 if parsed is not None:
                     vals.append(parsed)
-                    log(f"Parsed WETH: {parsed / 1e18:.4f} ETH", "INFO")
-                else:
-                    log(f"Failed to parse WETH value: {v}", "WARN")
     
     if vals:
         wei = sum(vals)
-        log(f"Total ETH/WETH for tx {tx_hash[:10]}…: {wei / 1e18:.4f} ETH", "INFO")
         return wei / 1e18
-    log(f"No ETH/WETH found for tx {tx_hash[:10]}…", "INFO")
+    
+    weth_from_etherscan = fetch_weth_from_etherscan(tx_hash)
+    if weth_from_etherscan:
+        return weth_from_etherscan
+    
     return None
 
 def get_token_metadata_from_payload(contract: str, token_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
