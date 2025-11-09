@@ -597,14 +597,20 @@ def estimate_tx_total_eth(payload: Dict[str, Any], tx_hash: str) -> Optional[flo
                 parsed = _parse_token_amount(v, 18)
                 if parsed is not None:
                     vals.append(parsed)
+                    log(f"Found native ETH: {parsed / 1e18:.4f} ETH", "INFO")
     
     for k in ("erc20Transfers", "erc20_transfers", "tokenTransfers"):
-        for t in (payload.get(k) or []):
+        transfers = payload.get(k) or []
+        if transfers:
+            log(f"Checking {len(transfers)} ERC-20 transfers for tx {tx_hash[:10]}…", "INFO")
+        for t in transfers:
             h = (t.get("transaction_hash") or t.get("transactionHash") or "").lower()
             token_addr = (t.get("address") or t.get("token_address") or t.get("contract") or "").lower()
+            log(f"ERC-20 transfer: tx={h[:10]}… token={token_addr[:10]}… WETH={WETH_ADDRESS[:10]}…", "INFO")
             if h == tx_hash.lower() and token_addr == WETH_ADDRESS:
                 v = t.get("value") or t.get("valueWithDecimals")
                 decimals_raw = t.get("tokenDecimals") or t.get("decimals") or 18
+                log(f"WETH transfer found! value={v} decimals={decimals_raw} full_data={json.dumps(t)[:200]}", "INFO")
                 try:
                     decimals = int(decimals_raw)
                 except (ValueError, TypeError):
@@ -612,10 +618,15 @@ def estimate_tx_total_eth(payload: Dict[str, Any], tx_hash: str) -> Optional[flo
                 parsed = _parse_token_amount(v, decimals)
                 if parsed is not None:
                     vals.append(parsed)
+                    log(f"Parsed WETH: {parsed / 1e18:.4f} ETH", "INFO")
+                else:
+                    log(f"Failed to parse WETH value: {v}", "WARN")
     
     if vals:
         wei = sum(vals)
+        log(f"Total ETH/WETH for tx {tx_hash[:10]}…: {wei / 1e18:.4f} ETH", "INFO")
         return wei / 1e18
+    log(f"No ETH/WETH found for tx {tx_hash[:10]}…", "INFO")
     return None
 
 def get_token_metadata_from_payload(contract: str, token_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
