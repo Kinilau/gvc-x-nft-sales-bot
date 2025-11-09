@@ -589,6 +589,8 @@ def estimate_tx_total_eth(payload: Dict[str, Any], tx_hash: str) -> Optional[flo
     WETH_ADDRESS = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
     vals = []
     
+    log(f"estimate_tx_total_eth called for tx={tx_hash[:10]}…", "INFO")
+    
     for k in ("txs", "transactions", "logs", "native_transactions"):
         for x in (payload.get(k) or []):
             h = (x.get("hash") or x.get("transaction_hash") or "").lower()
@@ -599,10 +601,13 @@ def estimate_tx_total_eth(payload: Dict[str, Any], tx_hash: str) -> Optional[flo
                     vals.append(parsed)
                     log(f"Found native ETH: {parsed / 1e18:.4f} ETH", "INFO")
     
+    erc20_count = len(payload.get("erc20Transfers", []))
+    log(f"Payload has {erc20_count} total erc20Transfers", "INFO")
+    
     for k in ("erc20Transfers", "erc20_transfers", "tokenTransfers"):
         transfers = payload.get(k) or []
         if transfers:
-            log(f"Checking {len(transfers)} ERC-20 transfers for tx {tx_hash[:10]}…", "INFO")
+            log(f"Checking {len(transfers)} ERC-20 transfers (key={k}) for tx {tx_hash[:10]}…", "INFO")
         for t in transfers:
             h = (t.get("transaction_hash") or t.get("transactionHash") or "").lower()
             token_addr = (t.get("address") or t.get("token_address") or t.get("contract") or "").lower()
