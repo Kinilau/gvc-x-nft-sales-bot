@@ -564,7 +564,9 @@ def parse_nft_transfers(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
     return transfers
 
 def estimate_tx_total_eth(payload: Dict[str, Any], tx_hash: str) -> Optional[float]:
+    WETH_ADDRESS = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
     vals = []
+    
     for k in ("txs", "transactions", "logs", "native_transactions"):
         for x in (payload.get(k) or []):
             h = (x.get("hash") or x.get("transaction_hash") or "").lower()
@@ -577,6 +579,21 @@ def estimate_tx_total_eth(payload: Dict[str, Any], tx_hash: str) -> Optional[flo
                         vals.append(int(v))
                 except Exception:
                     continue
+    
+    for k in ("erc20Transfers", "erc20_transfers", "tokenTransfers"):
+        for t in (payload.get(k) or []):
+            h = (t.get("transaction_hash") or t.get("transactionHash") or "").lower()
+            token_addr = (t.get("address") or t.get("token_address") or t.get("contract") or "").lower()
+            if h == tx_hash.lower() and token_addr == WETH_ADDRESS:
+                v = t.get("value") or t.get("valueWithDecimals")
+                try:
+                    if isinstance(v, str):
+                        vals.append(int(v))
+                    elif isinstance(v, (int, float)):
+                        vals.append(int(v))
+                except Exception:
+                    continue
+    
     if vals:
         wei = sum(vals)
         return wei / 1e18

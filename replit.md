@@ -6,11 +6,15 @@ An automated NFT sales bot that monitors blockchain transactions via Moralis web
 
 **Current State**: Fully configured and running in Replit environment. The Flask server is listening on port 5000 and ready to receive webhook events from Moralis.
 
-## Recent Changes (November 7, 2025)
+## Recent Changes (November 9, 2025)
+
+- **Fixed WETH detection** - Bot now correctly detects sales paid in WETH (Wrapped ETH) instead of only native ETH. This fixes OpenSea and marketplace sales being incorrectly skipped.
+
+## Previous Changes (November 7, 2025)
 
 - **Added rate limit retry queue** - When Twitter rate limits are hit (HTTP 429), bot now automatically retries after 15 minutes (configurable) instead of failing permanently. Supports up to 10 retry attempts.
 - **Fixed token name display** - Single sales now show "Citizen of Vibetown #X has sold..." instead of generic "Token #X has sold..."
-- **Added sales-only filtering** - Bot now only posts NFT sales with ETH payment (≥0.001 ETH), ignoring free transfers, gifts, and airdrops
+- **Added sales-only filtering** - Bot now only posts NFT sales with ETH/WETH payment (≥0.001 ETH), ignoring free transfers, gifts, and airdrops
 
 ## Previous Changes (November 6, 2025)
 
