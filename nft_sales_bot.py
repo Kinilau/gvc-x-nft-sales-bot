@@ -601,6 +601,10 @@ def fetch_weth_from_etherscan(tx_hash: str) -> Optional[float]:
         r.raise_for_status()
         data = r.json()
         
+        if not isinstance(data.get("result"), dict):
+            log(f"Etherscan: No valid result (got {type(data.get('result')).__name__})", "INFO")
+            return None
+        
         if data.get("result") and data["result"].get("logs"):
             weth_total = 0
             for log_entry in data["result"]["logs"]:
