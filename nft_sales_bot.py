@@ -602,7 +602,8 @@ def fetch_weth_from_etherscan(tx_hash: str) -> Optional[float]:
         data = r.json()
         
         if not isinstance(data.get("result"), dict):
-            log(f"Etherscan: No valid result (got {type(data.get('result')).__name__})", "INFO")
+            error_msg = data.get("result", "unknown error")
+            log(f"Etherscan API error: {error_msg}", "WARN")
             return None
         
         if data.get("result") and data["result"].get("logs"):
