@@ -586,14 +586,22 @@ def _parse_token_amount(value: Any, decimals: int = 18) -> Optional[int]:
     return None
 
 def fetch_weth_from_etherscan(tx_hash: str) -> Optional[float]:
-    """Fallback: Check Etherscan API for WETH transfers when Moralis doesn't provide ERC-20 data."""
+    """Fallback: Check Etherscan API V2 for WETH transfers when Moralis doesn't provide ERC-20 data."""
     WETH_ADDRESS = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+    api_key = os.getenv("ETHERSCAN_API_KEY", "")
+    
+    if not api_key:
+        log("Etherscan API key not set (ETHERSCAN_API_KEY). Skipping Etherscan fallback.", "WARN")
+        return None
+    
     try:
-        url = "https://api.etherscan.io/api"
+        url = "https://api.etherscan.io/v2/api"
         params = {
+            "chainid": "1",
             "module": "proxy",
             "action": "eth_getTransactionReceipt",
-            "txhash": tx_hash
+            "txhash": tx_hash,
+            "apikey": api_key
         }
         
         log(f"Checking Etherscan for WETH transfers in tx {tx_hash[:10]}…", "INFO")
