@@ -604,7 +604,11 @@ def estimate_tx_total_eth(payload: Dict[str, Any], tx_hash: str) -> Optional[flo
             token_addr = (t.get("address") or t.get("token_address") or t.get("contract") or "").lower()
             if h == tx_hash.lower() and token_addr == WETH_ADDRESS:
                 v = t.get("value") or t.get("valueWithDecimals")
-                decimals = t.get("tokenDecimals") or t.get("decimals") or 18
+                decimals_raw = t.get("tokenDecimals") or t.get("decimals") or 18
+                try:
+                    decimals = int(decimals_raw)
+                except (ValueError, TypeError):
+                    decimals = 18
                 parsed = _parse_token_amount(v, decimals)
                 if parsed is not None:
                     vals.append(parsed)
