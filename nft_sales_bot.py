@@ -1257,6 +1257,7 @@ def moralis_webhook():
             continue
         
         tx_value = estimate_tx_total_eth(payload, tx)
+        log(f"DEBUG: tx={tx[:10]}… estimated_value={tx_value} ETH, payload_keys={list(payload.keys())}", "INFO")
         if tx_value is None or tx_value < 0.001:
             log(f"skip transfer (no ETH payment): {tx[:10]}… {shorten_addr(buyer)} {len(items)} NFT(s)", "INFO")
             continue
