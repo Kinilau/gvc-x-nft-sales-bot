@@ -563,6 +563,28 @@ def parse_nft_transfers(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
     transfers = [t for t in transfers if t["token_address"] and t["token_id"] and is_watched_contract(t["token_address"])]
     return transfers
 
+def _parse_token_amount(value: Any, decimals: int = 18) -> Optional[int]:
+    """Parse token amount to wei, handling decimal strings, hex, and integers."""
+    try:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            if value.startswith("0x"):
+                return int(value, 16)
+            elif "." in value:
+                from decimal import Decimal
+                return int(Decimal(value) * (10 ** decimals))
+            else:
+                return int(value)
+        elif isinstance(value, (int, float)):
+            if isinstance(value, float) and value < 1000:
+                from decimal import Decimal
+                return int(Decimal(str(value)) * (10 ** decimals))
+            return int(value)
+    except Exception as e:
+        log(f"Failed to parse token amount {value}: {e}", "WARN")
+    return None
+
 def estimate_tx_total_eth(payload: Dict[str, Any], tx_hash: str) -> Optional[float]:
     WETH_ADDRESS = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
     vals = []
@@ -572,13 +594,9 @@ def estimate_tx_total_eth(payload: Dict[str, Any], tx_hash: str) -> Optional[flo
             h = (x.get("hash") or x.get("transaction_hash") or "").lower()
             if h and h == tx_hash.lower():
                 v = x.get("value")
-                try:
-                    if isinstance(v, str):
-                        vals.append(int(v))
-                    elif isinstance(v, (int, float)):
-                        vals.append(int(v))
-                except Exception:
-                    continue
+                parsed = _parse_token_amount(v, 18)
+                if parsed is not None:
+                    vals.append(parsed)
     
     for k in ("erc20Transfers", "erc20_transfers", "tokenTransfers"):
         for t in (payload.get(k) or []):
@@ -586,13 +604,10 @@ def estimate_tx_total_eth(payload: Dict[str, Any], tx_hash: str) -> Optional[flo
             token_addr = (t.get("address") or t.get("token_address") or t.get("contract") or "").lower()
             if h == tx_hash.lower() and token_addr == WETH_ADDRESS:
                 v = t.get("value") or t.get("valueWithDecimals")
-                try:
-                    if isinstance(v, str):
-                        vals.append(int(v))
-                    elif isinstance(v, (int, float)):
-                        vals.append(int(v))
-                except Exception:
-                    continue
+                decimals = t.get("tokenDecimals") or t.get("decimals") or 18
+                parsed = _parse_token_amount(v, decimals)
+                if parsed is not None:
+                    vals.append(parsed)
     
     if vals:
         wei = sum(vals)
@@ -1257,7 +1272,6 @@ def moralis_webhook():
             continue
         
         tx_value = estimate_tx_total_eth(payload, tx)
-        log(f"DEBUG: tx={tx[:10]}… estimated_value={tx_value} ETH, payload_keys={list(payload.keys())}", "INFO")
         if tx_value is None or tx_value < 0.001:
             log(f"skip transfer (no ETH payment): {tx[:10]}… {shorten_addr(buyer)} {len(items)} NFT(s)", "INFO")
             continue
