@@ -652,7 +652,9 @@ def estimate_tx_total_eth(payload: Dict[str, Any], tx_hash: str) -> Optional[flo
     
     if vals:
         wei = sum(vals)
-        return wei / 1e18
+        eth_value = wei / 1e18
+        if eth_value > 0:
+            return eth_value
     
     weth_from_etherscan = fetch_weth_from_etherscan(tx_hash)
     if weth_from_etherscan:
