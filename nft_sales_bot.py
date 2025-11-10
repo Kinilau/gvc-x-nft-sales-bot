@@ -178,11 +178,8 @@ class IdempotencyStore:
             except Exception as e:
                 log(f"Redis unavailable, falling back to in-memory: {e}", "WARN")
 
-    def key(self, tx: str, buyer: str, token_addr: str) -> str:
-        return f"{tx.lower()}|{buyer.lower()}|{token_addr.lower()}"
-
-    def seen(self, tx: str, buyer: str, token_addr: str) -> bool:
-        k = self.key(tx, buyer, token_addr)
+    def seen(self, key: str) -> bool:
+        k = key.lower()
         now = time.time()
         if self.redis:
             try:
@@ -196,8 +193,8 @@ class IdempotencyStore:
                 self.mem.pop(kk, None)
         return (k in self.mem) and (self.mem[k] + self.ttl > now)
 
-    def mark(self, tx: str, buyer: str, token_addr: str) -> None:
-        k = self.key(tx, buyer, token_addr)
+    def mark(self, key: str) -> None:
+        k = key.lower()
         now = time.time()
         if self.redis:
             try:
@@ -1376,14 +1373,42 @@ def moralis_webhook():
         return "ok", 200
 
     from collections import defaultdict
-    buys = defaultdict(list)
+    
+    # Filter out intermediate transfers: group by (tx, token_address, token_id)
+    # and remove transfers where the 'to' address later appears as a 'from'
+    tx_token_groups = defaultdict(list)
     for t in transfers:
         if t["to"] and t["from"]:
-            key = (t["tx"], t["to"], t["token_address"])
-            buys[key].append(t)
+            key = (t["tx"], t["token_address"], t["token_id"])
+            tx_token_groups[key].append(t)
+    
+    final_transfers = []
+    for (tx, token_address, token_id), group in tx_token_groups.items():
+        # Get all addresses that appear as 'from' in this group
+        from_addrs = {t["from"].lower() for t in group}
+        
+        # Find transfers where 'to' is NOT later used as 'from' (i.e., final transfers)
+        finals = [t for t in group if t["to"].lower() not in from_addrs]
+        
+        # If all recipients are later senders, just take the last transfer
+        if not finals:
+            finals = [group[-1]]
+        
+        final_transfers.extend(finals)
+    
+    # Group final transfers by buyer
+    buys = defaultdict(list)
+    for t in final_transfers:
+        key = (t["tx"], t["to"], t["token_address"])
+        buys[key].append(t)
 
     for (tx, buyer, token_address), items in buys.items():
-        if IDEMP.seen(tx, buyer, token_address):
+        # Use (tx, token_address, token_id) for idempotency to prevent duplicates
+        # when the same token is transferred multiple times in one transaction
+        token_ids = sorted([t["token_id"] for t in items])
+        idemp_key = f"{tx}:{token_address}:{','.join(token_ids)}"
+        
+        if IDEMP.seen(idemp_key):
             log(f"skip duplicate {tx[:10]}… {shorten_addr(buyer)} {token_address[:8]}…", "INFO")
             continue
         
@@ -1392,7 +1417,7 @@ def moralis_webhook():
             log(f"skip transfer (no ETH payment): {tx[:10]}… {shorten_addr(buyer)} {len(items)} NFT(s)", "INFO")
             continue
         
-        IDEMP.mark(tx, buyer, token_address)
+        IDEMP.mark(idemp_key)
 
         items_sorted = sorted(items, key=lambda z: int(z["token_id"]))
         if len(items_sorted) >= 2:
