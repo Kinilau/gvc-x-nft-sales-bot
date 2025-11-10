@@ -585,6 +585,51 @@ def _parse_token_amount(value: Any, decimals: int = 18) -> Optional[int]:
         log(f"Failed to parse token amount {value}: {e}", "WARN")
     return None
 
+def fetch_internal_eth_from_etherscan(tx_hash: str) -> Optional[float]:
+    """Fallback: Check Etherscan API V2 for internal ETH transfers (e.g., Seaport marketplace sales)."""
+    api_key = os.getenv("ETHERSCAN_API_KEY", "")
+    
+    if not api_key:
+        return None
+    
+    try:
+        url = "https://api.etherscan.io/v2/api"
+        params = {
+            "chainid": "1",
+            "module": "account",
+            "action": "txlistinternal",
+            "txhash": tx_hash,
+            "apikey": api_key
+        }
+        
+        log(f"Checking Etherscan for internal ETH transfers in tx {tx_hash[:10]}…", "INFO")
+        r = S.get(url, params=params, timeout=HTTP_TIMEOUT)
+        r.raise_for_status()
+        data = r.json()
+        
+        if data.get("status") == "1" and data.get("result"):
+            eth_transfers = []
+            for internal_tx in data["result"]:
+                value_str = internal_tx.get("value", "0")
+                try:
+                    value_wei = int(value_str)
+                    if value_wei > 0:
+                        eth_transfers.append(value_wei)
+                except (ValueError, TypeError):
+                    continue
+            
+            if eth_transfers:
+                largest_transfer = max(eth_transfers)
+                eth_value = largest_transfer / 1e18
+                log(f"Etherscan: Found internal ETH transfer {eth_value:.4f} ETH (largest of {len(eth_transfers)} transfers)", "INFO")
+                return eth_value
+        
+        log(f"Etherscan: No internal ETH transfers found for tx {tx_hash[:10]}…", "INFO")
+        return None
+    except Exception as e:
+        log(f"Etherscan internal transactions API error: {e}", "WARN")
+        return None
+
 def fetch_weth_from_etherscan(tx_hash: str) -> Optional[float]:
     """Fallback: Check Etherscan API V2 for WETH transfers when Moralis doesn't provide ERC-20 data."""
     WETH_ADDRESS = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
@@ -678,6 +723,10 @@ def estimate_tx_total_eth(payload: Dict[str, Any], tx_hash: str) -> Optional[flo
     weth_from_etherscan = fetch_weth_from_etherscan(tx_hash)
     if weth_from_etherscan:
         return weth_from_etherscan
+    
+    internal_eth_from_etherscan = fetch_internal_eth_from_etherscan(tx_hash)
+    if internal_eth_from_etherscan:
+        return internal_eth_from_etherscan
     
     return None
 
