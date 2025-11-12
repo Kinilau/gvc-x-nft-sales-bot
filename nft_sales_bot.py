@@ -171,6 +171,16 @@ LENDING_CONTRACTS = {
 }
 
 # -------------------------
+# Marketplace contracts (for tagging in tweets)
+# -------------------------
+MARKETPLACE_TAGS = {
+    "0x53ceda4c47585df08201955820e23bb261489140": "@gondixyz",  # Gondi V3 Liquidation
+    "0x2995ae7233fa89b314b5a707465b57a582f440f0": "@gondixyz",  # Gondi V3 Auction
+    "0x3b59bffe109e0f33f20887343759a98b48ecdf5f": "@gondixyz",  # Gondi V2 Liquidation
+    "0x97d34635b605c2f1630d6b4c6c5d222b8a2ca47d": "@gondixyz",  # Gondi V2 Auction
+}
+
+# -------------------------
 # Idempotency store
 # -------------------------
 class IdempotencyStore:
@@ -421,9 +431,11 @@ def build_collage(image_paths: List[Path], out_path: Path) -> Path:
 # Tweet text builders
 # -------------------------
 def single_sale_text(token_name: str, token_id: str, price_eth: Optional[float],
-                     price_usd: Optional[float], buyer: str, seller: str, url: str) -> str:
+                     price_usd: Optional[float], buyer: str, seller: str, url: str,
+                     marketplace_tag: Optional[str] = None) -> str:
+    marketplace_suffix = f" on {marketplace_tag}" if marketplace_tag else ""
     return (
-        f"{token_name} {token_id} has sold for {fmt_eth(price_eth)} ({fmt_usd(price_usd)})\n\n"
+        f"{token_name} {token_id} has sold for {fmt_eth(price_eth)} ({fmt_usd(price_usd)}){marketplace_suffix}\n\n"
         f"Buyer: {shorten_addr(buyer)}\n"
         f"Seller: {shorten_addr(seller)}\n\n"
         f"URL: {url}"
@@ -690,6 +702,18 @@ def fetch_weth_from_etherscan(tx_hash: str) -> Optional[float]:
         log(f"Etherscan API error: {e}", "WARN")
         return None
 
+def get_marketplace_tag(payload: Dict[str, Any], tx_hash: str) -> Optional[str]:
+    """Extract marketplace tag from transaction data if it matches a known marketplace."""
+    txs = payload.get("txs") or payload.get("transactions") or []
+    for tx_data in txs:
+        if tx_data.get("hash", "").lower() == tx_hash.lower():
+            to_addr = (tx_data.get("toAddress") or tx_data.get("to_address") or "").lower()
+            if to_addr in MARKETPLACE_TAGS:
+                tag = MARKETPLACE_TAGS[to_addr]
+                log(f"Detected marketplace sale on {tag}", "INFO")
+                return tag
+    return None
+
 def estimate_tx_total_eth(payload: Dict[str, Any], tx_hash: str) -> Optional[float]:
     WETH_ADDRESS = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
     vals = []
@@ -813,7 +837,8 @@ def image_path_for_token(contract: str, token_id: str, payload: Dict[str, Any]) 
     return download_image_any(img)
 
 def post_single_sale(contract: str, token_id: str, buyer: str, seller: str,
-                     price_eth: Optional[float], payload: Dict[str, Any]) -> None:
+                     price_eth: Optional[float], payload: Dict[str, Any],
+                     marketplace_tag: Optional[str] = None) -> None:
     eth_usd = get_eth_usd()
     price_usd = (price_eth * eth_usd) if (price_eth is not None and eth_usd is not None) else None
 
@@ -822,9 +847,9 @@ def post_single_sale(contract: str, token_id: str, buyer: str, seller: str,
     url = opensea_asset_url(contract, token_id)
     
     if f"#{token_id}" in token_name:
-        text = single_sale_text(token_name, "", price_eth, price_usd, buyer, seller, url)
+        text = single_sale_text(token_name, "", price_eth, price_usd, buyer, seller, url, marketplace_tag)
     else:
-        text = single_sale_text(token_name, f"#{token_id}", price_eth, price_usd, buyer, seller, url)
+        text = single_sale_text(token_name, f"#{token_id}", price_eth, price_usd, buyer, seller, url, marketplace_tag)
 
     img_path = image_path_for_token(contract, token_id, payload)
     auth = oauth1()
@@ -1453,10 +1478,12 @@ def moralis_webhook():
                 except: price_eth = None
             if price_eth is None:
                 price_eth = tx_value
+            marketplace_tag = get_marketplace_tag(payload, tx)
             ok = _push_job(PostJob(kind="single", data={
                 "contract": it["token_address"], "token_id": it["token_id"],
                 "buyer": buyer, "seller": it["from"],
-                "price_eth": price_eth, "payload": payload
+                "price_eth": price_eth, "payload": payload,
+                "marketplace_tag": marketplace_tag
             }))
             if not ok: log("enqueue single failed (queue full)", "WARN")
 
