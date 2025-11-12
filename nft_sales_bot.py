@@ -178,7 +178,13 @@ MARKETPLACE_TAGS = {
     "0x2995ae7233fa89b314b5a707465b57a582f440f0": "@gondixyz",  # Gondi V3 Auction
     "0x3b59bffe109e0f33f20887343759a98b48ecdf5f": "@gondixyz",  # Gondi V2 Liquidation
     "0x97d34635b605c2f1630d6b4c6c5d222b8a2ca47d": "@gondixyz",  # Gondi V2 Auction
+    "0x0000000000000068f116a894984e2db1123eb395": "@opensea",   # OpenSea Seaport 1.6
+    "0x00000000000000adc04c56bf30ac9d3c0aaf14dc": "@opensea",   # OpenSea Seaport 1.5
+    "0x00000000006c3852cbef3e08e8df289169ede581": "@opensea",   # OpenSea Seaport 1.1
 }
+
+# Good Vibes Club Twitter user ID for photo tagging (get once via: https://tweeterid.com/)
+GOODVIBES_TWITTER_USER_ID = os.getenv("GOODVIBES_TWITTER_USER_ID", "").strip()
 
 # -------------------------
 # Idempotency store
@@ -524,11 +530,15 @@ def upload_media_v11(auth: OAuth1, image_path: str) -> Optional[str]:
         log(f"media upload error: {e}", "ERROR")
         return None
 
-def post_tweet_v2(auth: OAuth1, text: str, media_ids: Optional[List[str]]) -> bool:
+def post_tweet_v2(auth: OAuth1, text: str, media_ids: Optional[List[str]], 
+                  tagged_user_ids: Optional[List[str]] = None) -> bool:
     url = "https://api.twitter.com/2/tweets"
     payload: Dict[str, Any] = {"text": text}
     if media_ids:
-        payload["media"] = {"media_ids": media_ids}
+        media_obj = {"media_ids": media_ids}
+        if tagged_user_ids:
+            media_obj["tagged_user_ids"] = tagged_user_ids
+        payload["media"] = media_obj
     r = S.post(url, auth=auth, json=payload, timeout=HTTP_TIMEOUT)
     if r.status_code == 429:
         log(f"/2/tweets rate limited [429]: {r.text}", "WARN")
@@ -863,7 +873,8 @@ def post_single_sale(contract: str, token_id: str, buyer: str, seller: str,
         except: pass
     else:
         log(f"single: no image for {contract} #{token_id}; posting text only", "WARN")
-    post_tweet_v2(auth, text, media_ids)
+    tagged_users = [GOODVIBES_TWITTER_USER_ID] if GOODVIBES_TWITTER_USER_ID and media_ids else None
+    post_tweet_v2(auth, text, media_ids, tagged_users)
 
 def _download_one_image(it: Dict[str, Any], payload: Dict[str, Any]) -> Optional[Path]:
     try:
@@ -952,7 +963,8 @@ def post_sweep(buyer: str, token_address: str, items: List[Dict[str, Any]], payl
             if mid:
                 media_ids.append(mid)
 
-    post_tweet_v2(auth, text, media_ids if media_ids else None)
+    tagged_users = [GOODVIBES_TWITTER_USER_ID] if GOODVIBES_TWITTER_USER_ID and media_ids else None
+    post_tweet_v2(auth, text, media_ids if media_ids else None, tagged_users)
 
 # -------------------------
 # Async job queue
