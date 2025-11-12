@@ -166,8 +166,25 @@ def _m_inc(path: tuple, n: int = 1):
 # Known lending/escrow contracts to filter out (loans, not sales)
 # -------------------------
 LENDING_CONTRACTS = {
+    # Gondi
     "0xf41b389e0c1950dc0b16c9498eae77131cc08a56",  # Gondi loan contract
     "0xf65b99ce6dc5f6c556172bcc0ff27d3665a7d9a8",  # Gondi: Multi Source Loan (V3)
+    
+    # NFTfi (all versions)
+    "0xb6adec2acc851d30d5fb64f3137234bcdcbbad0d",  # NFTfi V3: Collection Offer Loan
+    "0x9f10d706d789e4c76a1a6434cd1a9841c875c0a6",  # NFTfi V3: Asset Offer Loan
+    "0xd0a40eb7fd94ee97102ba8e9342243a2b2e22207",  # NFTfi V2.3: Direct Loan Fixed Offer
+    "0xd0c6e59b50c32530c627107f50acc71958c4341f",  # NFTfi V2.3: Direct Loan Fixed Collection Offer
+    "0xe52cec0e90115abeb3304baa36bc2655731f7934",  # NFTfi V2: Direct Loan Fixed Collection Offer
+    "0x2ae3e46290ade43593eabd15642ebd67157f5351",  # NFTfi: Escrow (holds NFT collateral)
+    
+    # Blend (Blur Lending)
+    "0x29469395eaf6f95920e59f858042f0e28d98a20b",  # Blend: Main lending contract
+    
+    # Arcade
+    "0x89bc08ba00f135d608bc335f6b33d7a9abcc98af",  # Arcade V3: Loan Core
+    "0xb39dab85fa05c381767ff992ccde4c94619993d4",  # Arcade V3: Repayment Controller
+    "0x59e57f9a313a2eb1c7357ecc331ddca14209f403",  # Arcade V2: Loan Core
 }
 
 # -------------------------

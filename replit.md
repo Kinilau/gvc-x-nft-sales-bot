@@ -6,7 +6,16 @@ An automated NFT sales bot that monitors blockchain transactions via Moralis web
 
 **Current State**: Fully configured and running in Replit environment. The Flask server is listening on port 5000 and ready to receive webhook events from Moralis.
 
-## Recent Changes (November 9, 2025)
+## Recent Changes (November 12, 2025)
+
+- **Comprehensive NFT lending protocol filtering** - Added exclusion filters for all major NFT lending platforms to prevent loan transactions from being posted as sales:
+  - NFTfi (V2, V2.3, V3 - all versions including escrow)
+  - Blend (Blur Lending)
+  - Arcade (V2 and V3)
+  - Gondi (V2 and V3)
+  - Filters both loan deposits (collateral) and loan repayments/withdrawals
+
+## Previous Changes (November 9, 2025)
 
 - **Fixed WETH detection** - Bot now correctly detects sales paid in WETH (Wrapped ETH) instead of only native ETH. This fixes OpenSea and marketplace sales being incorrectly skipped.
 - **Added Etherscan API fallback** - When Moralis webhooks don't include ERC-20 transfer data, bot automatically checks Etherscan API for WETH transfers. This ensures all marketplace sales are captured regardless of webhook payload contents.
