@@ -163,6 +163,14 @@ def _m_inc(path: tuple, n: int = 1):
         ref[path[-1]] = ref.get(path[-1], 0) + n
 
 # -------------------------
+# Known lending/escrow contracts to filter out (loans, not sales)
+# -------------------------
+LENDING_CONTRACTS = {
+    "0xf41b389e0c1950dc0b16c9498eae77131cc08a56",  # Gondi loan contract
+    "0xf65b99ce6dc5f6c556172bcc0ff27d3665a7d9a8",  # Gondi: Multi Source Loan (V3)
+}
+
+# -------------------------
 # Idempotency store
 # -------------------------
 class IdempotencyStore:
@@ -1403,6 +1411,17 @@ def moralis_webhook():
         buys[key].append(t)
 
     for (tx, buyer, token_address), items in buys.items():
+        # Filter out lending/loan contracts (Gondi, etc.) - these are collateral transfers, not sales
+        if buyer.lower() in LENDING_CONTRACTS:
+            log(f"skip loan deposit {tx[:10]}… {shorten_addr(buyer)} (lending contract)", "INFO")
+            continue
+        
+        # Check if any seller is a lending contract (loan repayment/withdrawal)
+        sellers = {t["from"].lower() for t in items}
+        if sellers & LENDING_CONTRACTS:
+            log(f"skip loan withdrawal {tx[:10]}… from lending contract to {shorten_addr(buyer)}", "INFO")
+            continue
+        
         # Use (tx, token_address, token_id) for idempotency to prevent duplicates
         # when the same token is transferred multiple times in one transaction
         token_ids = sorted([t["token_id"] for t in items])
