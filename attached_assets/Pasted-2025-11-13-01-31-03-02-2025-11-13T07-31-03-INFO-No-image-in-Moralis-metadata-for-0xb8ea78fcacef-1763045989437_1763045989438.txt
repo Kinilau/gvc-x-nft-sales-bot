@@ -1,0 +1,39 @@
+2025-11-13 01:31:03.02
+[2025-11-13T07:31:03] [INFO] No image in Moralis metadata for 0xb8ea78fcacef50d41375e44e6814ebba36bb33c4 #784, trying Alchemy fallback
+2025-11-13 01:31:05.37
+[2025-11-13T07:31:05] [INFO] Tweet posted: 1988872226964226431
+
+2025-11-13 04:41:04.06
+[2025-11-13T10:41:04] [INFO] Checking Etherscan for WETH transfers in tx 0x74284b9c…
+2025-11-13 04:41:04.36
+[2025-11-13T10:41:04] [INFO] Etherscan: Found WETH transfer 0.4420 ETH (largest of 3 transfers)
+2025-11-13 04:41:04.36
+[2025-11-13T10:41:04] [INFO] Detected marketplace sale on @opensea
+2025-11-13 04:41:04.59
+[2025-11-13T10:41:04] [INFO] No image in Moralis metadata for 0xb8ea78fcacef50d41375e44e6814ebba36bb33c4 #5709, trying Alchemy fallback
+2025-11-13 04:41:10.07
+[2025-11-13T10:41:10] [WARN] /2/tweets rate limited [429]: {"title":"Too Many Requests","detail":"Too Many Requests","type":"about:blank","status":429}
+2025-11-13 04:41:10.07
+[2025-11-13T10:41:10] [WARN] Rate limited (single), retrying in 15 minutes (attempt 1/10)
+2025-11-13 04:56:10.32
+[2025-11-13T10:56:10] [INFO] No image in Moralis metadata for 0xb8ea78fcacef50d41375e44e6814ebba36bb33c4 #5709, trying Alchemy fallback
+2025-11-13 04:56:15.21
+[2025-11-13T10:56:15] [WARN] /2/tweets rate limited [429]: {"title":"Too Many Requests","detail":"Too Many Requests","type":"about:blank","status":429}
+2025-11-13 04:56:15.21
+[2025-11-13T10:56:15] [WARN] Rate limited (single), retrying in 15 minutes (attempt 2/10)
+2025-11-13 05:11:15.35
+[2025-11-13T11:11:15] [INFO] No image in Moralis metadata for 0xb8ea78fcacef50d41375e44e6814ebba36bb33c4 #5709, trying Alchemy fallback
+2025-11-13 05:11:20.87
+[2025-11-13T11:11:20] [WARN] /2/tweets rate limited [429]: {"title":"Too Many Requests","detail":"Too Many Requests","type":"about:blank","status":429}
+2025-11-13 05:11:20.87
+[2025-11-13T11:11:20] [WARN] Rate limited (single), retrying in 15 minutes (attempt 3/10)
+2025-11-13 05:26:21.11
+[2025-11-13T11:26:21] [INFO] No image in Moralis metadata for 0xb8ea78fcacef50d41375e44e6814ebba36bb33c4 #5709, trying Alchemy fallback
+2025-11-13 05:26:25.85
+[2025-11-13T11:26:25] [WARN] /2/tweets rate limited [429]: {"title":"Too Many Requests","detail":"Too Many Requests","type":"about:blank","status":429}
+2025-11-13 05:26:25.85
+[2025-11-13T11:26:25] [WARN] Rate limited (single), retrying in 15 minutes (attempt 4/10)
+2025-11-13 05:41:26.12
+[2025-11-13T11:41:26] [INFO] No image in Moralis metadata for 0xb8ea78fcacef50d41375e44e6814ebba36bb33c4 #5709, trying Alchemy fallback
+2025-11-13 05:41:31.34
+[2025-11-13T11:41:31] [WARN] /2/tweets rate limited [429]: {"title":"Too Many Requests","detail":"Too Many Requests","type":"about:blank","status":429}

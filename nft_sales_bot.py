@@ -25,7 +25,9 @@ from PIL import Image, ImageColor, UnidentifiedImageError
 # Custom exceptions
 class RateLimitError(Exception):
     """Raised when Twitter API rate limit is hit (HTTP 429)"""
-    pass
+    def __init__(self, message: str, reset_at: Optional[int] = None):
+        super().__init__(message)
+        self.reset_at = reset_at  # Unix timestamp when rate limit resets
 
 # ================== Replit Secrets (environment variables) ==================
 import argparse
@@ -558,8 +560,18 @@ def post_tweet_v2(auth: OAuth1, text: str, media_ids: Optional[List[str]],
         payload["media"] = media_obj
     r = S.post(url, auth=auth, json=payload, timeout=HTTP_TIMEOUT)
     if r.status_code == 429:
-        log(f"/2/tweets rate limited [429]: {r.text}", "WARN")
-        raise RateLimitError(f"Twitter API rate limit hit: {r.text}")
+        reset_at = None
+        reset_header = r.headers.get("x-rate-limit-reset") or r.headers.get("X-RateLimit-Reset")
+        if reset_header:
+            try:
+                reset_at = int(reset_header)
+                reset_time = time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime(reset_at))
+                log(f"/2/tweets rate limited [429], resets at {reset_time}: {r.text}", "WARN")
+            except (ValueError, TypeError):
+                log(f"/2/tweets rate limited [429]: {r.text}", "WARN")
+        else:
+            log(f"/2/tweets rate limited [429], no reset header: {r.text}", "WARN")
+        raise RateLimitError(f"Twitter API rate limit hit: {r.text}", reset_at=reset_at)
     if r.status_code not in (200, 201):
         log(f"/2/tweets failed [{r.status_code}]: {r.text}", "ERROR")
         return False
@@ -1023,8 +1035,17 @@ def _run_job(job: PostJob):
         job.attempts += 1
         _m_inc(("jobs_retried_total", job.kind if job.kind in ("single","sweep") else "single"))
         if job.attempts < RATE_LIMIT_MAX_RETRIES:
-            delay_secs = RATE_LIMIT_RETRY_DELAY_MINS * 60
-            log(f"Rate limited ({job.kind}), retrying in {RATE_LIMIT_RETRY_DELAY_MINS} minutes (attempt {job.attempts}/{RATE_LIMIT_MAX_RETRIES})", "WARN")
+            # Use X-RateLimit-Reset header if available, otherwise fall back to fixed delay
+            if e.reset_at:
+                now = int(time.time())
+                delay_secs = max(60, e.reset_at - now + 5)  # Wait until reset + 5 sec buffer, min 60 sec
+                delay_mins = delay_secs / 60.0
+                reset_time = time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime(e.reset_at))
+                log(f"Rate limited ({job.kind}), retrying after reset at {reset_time} (~{delay_mins:.1f} min, attempt {job.attempts}/{RATE_LIMIT_MAX_RETRIES})", "WARN")
+            else:
+                # Fallback to configured delay if no reset header
+                delay_secs = RATE_LIMIT_RETRY_DELAY_MINS * 60
+                log(f"Rate limited ({job.kind}), retrying in {RATE_LIMIT_RETRY_DELAY_MINS} minutes (attempt {job.attempts}/{RATE_LIMIT_MAX_RETRIES})", "WARN")
             time.sleep(delay_secs)
             _push_job(job)
         else:
