@@ -1021,6 +1021,23 @@ def _job_backoff(attempt: int) -> float:
     base = min(4.0, 0.5 * (2 ** max(0, attempt)))
     return base + random.uniform(0, 0.3)
 
+def _get_job_token_context(job: PostJob) -> str:
+    """Extract token ID(s) from job data for logging."""
+    try:
+        if job.kind == "single":
+            token_id = job.data.get("token_id", "?")
+            return f"#{token_id}"
+        elif job.kind == "sweep":
+            items = job.data.get("items", [])
+            if items:
+                token_ids = [str(it.get("token_id", "?")) for it in items[:5]]
+                if len(items) > 5:
+                    return f"#{', #'.join(token_ids)}... ({len(items)} total)"
+                return f"#{', #'.join(token_ids)}"
+        return ""
+    except:
+        return ""
+
 def _run_job(job: PostJob):
     try:
         if job.kind == "single":
@@ -1034,6 +1051,7 @@ def _run_job(job: PostJob):
     except RateLimitError as e:
         job.attempts += 1
         _m_inc(("jobs_retried_total", job.kind if job.kind in ("single","sweep") else "single"))
+        token_ctx = _get_job_token_context(job)
         if job.attempts < RATE_LIMIT_MAX_RETRIES:
             # Use X-RateLimit-Reset header if available, otherwise fall back to fixed delay
             if e.reset_at:
@@ -1041,16 +1059,16 @@ def _run_job(job: PostJob):
                 delay_secs = max(60, e.reset_at - now + 5)  # Wait until reset + 5 sec buffer, min 60 sec
                 delay_mins = delay_secs / 60.0
                 reset_time = time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime(e.reset_at))
-                log(f"Rate limited ({job.kind}), retrying after reset at {reset_time} (~{delay_mins:.1f} min, attempt {job.attempts}/{RATE_LIMIT_MAX_RETRIES})", "WARN")
+                log(f"Rate limited posting {token_ctx} ({job.kind}), will retry after {reset_time} (~{delay_mins:.1f} min wait, attempt {job.attempts}/{RATE_LIMIT_MAX_RETRIES})", "WARN")
             else:
                 # Fallback to configured delay if no reset header
                 delay_secs = RATE_LIMIT_RETRY_DELAY_MINS * 60
-                log(f"Rate limited ({job.kind}), retrying in {RATE_LIMIT_RETRY_DELAY_MINS} minutes (attempt {job.attempts}/{RATE_LIMIT_MAX_RETRIES})", "WARN")
+                log(f"Rate limited posting {token_ctx} ({job.kind}), will retry in {RATE_LIMIT_RETRY_DELAY_MINS} min (attempt {job.attempts}/{RATE_LIMIT_MAX_RETRIES})", "WARN")
             time.sleep(delay_secs)
             _push_job(job)
         else:
             _m_inc(("jobs_failed_total", job.kind if job.kind in ("single","sweep") else "single"))
-            log(f"Job permanently failed after {job.attempts} rate limit retries: {e}", "ERROR")
+            log(f"Permanently failed posting {token_ctx} after {job.attempts} rate limit retries", "ERROR")
     except Exception as e:
         job.attempts += 1
         _m_inc(("jobs_retried_total", job.kind if job.kind in ("single","sweep") else "single"))
