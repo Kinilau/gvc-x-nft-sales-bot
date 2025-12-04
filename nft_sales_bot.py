@@ -571,16 +571,27 @@ def post_tweet_v2(auth: OAuth1, text: str, media_ids: Optional[List[str]],
     r = S.post(url, auth=auth, json=payload, timeout=HTTP_TIMEOUT)
     if r.status_code == 429:
         reset_at = None
+        # Track all three rate limit headers for diagnostics
+        limit_header = r.headers.get("x-rate-limit-limit") or r.headers.get("X-RateLimit-Limit")
+        remaining_header = r.headers.get("x-rate-limit-remaining") or r.headers.get("X-RateLimit-Remaining")
         reset_header = r.headers.get("x-rate-limit-reset") or r.headers.get("X-RateLimit-Reset")
+        
+        # Build diagnostic message
+        diagnostics = []
+        if limit_header:
+            diagnostics.append(f"limit={limit_header}")
+        if remaining_header:
+            diagnostics.append(f"remaining={remaining_header}")
         if reset_header:
             try:
                 reset_at = int(reset_header)
                 reset_time = time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime(reset_at))
-                log(f"/2/tweets rate limited [429], resets at {reset_time}: {r.text}", "WARN")
+                diagnostics.append(f"resets at {reset_time}")
             except (ValueError, TypeError):
-                log(f"/2/tweets rate limited [429]: {r.text}", "WARN")
-        else:
-            log(f"/2/tweets rate limited [429], no reset header: {r.text}", "WARN")
+                diagnostics.append(f"reset_header={reset_header}")
+        
+        diag_str = ", ".join(diagnostics) if diagnostics else "no headers"
+        log(f"/2/tweets rate limited [429] ({diag_str}): {r.text}", "WARN")
         raise RateLimitError(f"Twitter API rate limit hit: {r.text}", reset_at=reset_at)
     if r.status_code not in (200, 201):
         log(f"/2/tweets failed [{r.status_code}]: {r.text}", "ERROR")
