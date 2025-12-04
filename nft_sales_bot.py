@@ -597,7 +597,9 @@ def post_tweet_v2(auth: OAuth1, text: str, media_ids: Optional[List[str]],
         log(f"/2/tweets failed [{r.status_code}]: {r.text}", "ERROR")
         return False
     _m_inc(("tweets_posted_total",))
-    log(f"Tweet posted: {(r.json() or {}).get('data',{}).get('id')}", "INFO")
+    tweet_id = (r.json() or {}).get('data',{}).get('id')
+    log(f"Tweet posted: {tweet_id}", "INFO")
+    _record_tweet()  # Track for 24-hour quota detection
     return True
 
 # -------------------------
@@ -1034,6 +1036,8 @@ _RATE_LIMIT_LOCK = threading.Lock()
 _CONSECUTIVE_RATE_LIMITS = 0  # Counter for consecutive rate limit failures
 _PROGRESSIVE_BACKOFF_LEVEL = 0  # 0=normal, 1=1h, 2=4h, 3=12h
 _WEBHOOK_TIMES = []  # Rolling list of webhook arrival times for burst detection
+_TWEET_TIMES_24H = []  # Track successful tweets in last 24 hours for daily quota detection
+TWEETS_PER_24H_LIMIT = 17  # X free tier daily cap
 
 def _push_job(job: PostJob) -> bool:
     try:
@@ -1065,6 +1069,35 @@ def _get_job_token_context(job: PostJob) -> str:
     except:
         return ""
 
+def _record_tweet():
+    """Record a successful tweet for 24-hour quota tracking."""
+    global _TWEET_TIMES_24H
+    with _RATE_LIMIT_LOCK:
+        now = time.time()
+        _TWEET_TIMES_24H.append(now)
+        # Clean up tweets older than 24 hours
+        cutoff = now - (24 * 60 * 60)
+        _TWEET_TIMES_24H = [t for t in _TWEET_TIMES_24H if t >= cutoff]
+
+def _get_daily_quota_used() -> Tuple[int, Optional[float]]:
+    """Returns (tweets_in_last_24h, oldest_tweet_time_or_none)."""
+    global _TWEET_TIMES_24H
+    with _RATE_LIMIT_LOCK:
+        now = time.time()
+        cutoff = now - (24 * 60 * 60)
+        recent = [t for t in _TWEET_TIMES_24H if t >= cutoff]
+        _TWEET_TIMES_24H = recent  # Clean while we're at it
+        oldest = min(recent) if recent else None
+        return len(recent), oldest
+
+def _is_daily_limit_hit() -> Tuple[bool, Optional[int]]:
+    """Check if 24-hour daily cap is hit. Returns (is_hit, secs_until_reset)."""
+    used, oldest = _get_daily_quota_used()
+    if used >= TWEETS_PER_24H_LIMIT and oldest:
+        secs_until_reset = int((oldest + 24*60*60) - time.time())
+        return True, max(0, secs_until_reset)
+    return False, None
+
 def _run_job(job: PostJob):
     global _CONSECUTIVE_RATE_LIMITS, _PROGRESSIVE_BACKOFF_LEVEL
     try:
@@ -1087,31 +1120,36 @@ def _run_job(job: PostJob):
         _m_inc(("jobs_retried_total", job.kind if job.kind in ("single","sweep") else "single"))
         token_ctx = _get_job_token_context(job)
         
-        with _RATE_LIMIT_LOCK:
-            _CONSECUTIVE_RATE_LIMITS += 1
-            # After threshold, escalate backoff level
-            if _CONSECUTIVE_RATE_LIMITS >= CONSECUTIVE_RATELIMIT_THRESHOLD:
-                _PROGRESSIVE_BACKOFF_LEVEL = min(len(PROGRESSIVE_BACKOFF_DELAYS), (_CONSECUTIVE_RATE_LIMITS - CONSECUTIVE_RATELIMIT_THRESHOLD) // 2)
+        # Check if the 24-hour daily cap is hit
+        is_daily_hit, secs_until_reset = _is_daily_limit_hit()
         
-        if job.attempts < RATE_LIMIT_MAX_RETRIES:
-            # Determine delay: use progressive backoff if sustained, else X-RateLimit-Reset or default
+        if is_daily_hit and secs_until_reset is not None:
+            # Daily limit exhausted - don't retry, just wait until window resets
+            reset_time = time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime(time.time() + secs_until_reset))
+            log(f"Daily limit hit posting {token_ctx}, daily quota exhausted (17/24h), waiting until {reset_time}", "WARN")
+            time.sleep(secs_until_reset)
+            _push_job(job)
+        elif job.attempts < RATE_LIMIT_MAX_RETRIES:
+            # Per-window rate limit (15-min) - use progressive backoff for sustained limits
+            with _RATE_LIMIT_LOCK:
+                _CONSECUTIVE_RATE_LIMITS += 1
+                if _CONSECUTIVE_RATE_LIMITS >= CONSECUTIVE_RATELIMIT_THRESHOLD:
+                    _PROGRESSIVE_BACKOFF_LEVEL = min(len(PROGRESSIVE_BACKOFF_DELAYS), (_CONSECUTIVE_RATE_LIMITS - CONSECUTIVE_RATELIMIT_THRESHOLD) // 2)
+            
             delay_secs = None
             msg_reason = ""
             
             if _PROGRESSIVE_BACKOFF_LEVEL > 0 and _CONSECUTIVE_RATE_LIMITS >= CONSECUTIVE_RATELIMIT_THRESHOLD:
-                # Sustained rate limit detected - use progressive backoff
                 idx = min(_PROGRESSIVE_BACKOFF_LEVEL - 1, len(PROGRESSIVE_BACKOFF_DELAYS) - 1)
                 delay_secs = PROGRESSIVE_BACKOFF_DELAYS[idx]
                 delay_label = ["1h", "4h", "12h"][idx]
-                msg_reason = f"sustained limit (consecutive: {_CONSECUTIVE_RATE_LIMITS}), backing off {delay_label}"
+                msg_reason = f"sustained (consecutive: {_CONSECUTIVE_RATE_LIMITS}), backing off {delay_label}"
             elif e.reset_at:
-                # Use Twitter's reset time
                 now = int(time.time())
                 delay_secs = max(60, e.reset_at - now + 5)
                 reset_time = time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime(e.reset_at))
                 msg_reason = f"reset at {reset_time} (~{delay_secs/60.0:.1f} min wait)"
             else:
-                # Fallback to configured delay
                 delay_secs = RATE_LIMIT_RETRY_DELAY_MINS * 60
                 msg_reason = f"fallback wait {RATE_LIMIT_RETRY_DELAY_MINS} min"
             
@@ -1121,7 +1159,7 @@ def _run_job(job: PostJob):
                 _push_job(job)
         else:
             _m_inc(("jobs_failed_total", job.kind if job.kind in ("single","sweep") else "single"))
-            log(f"Permanently failed posting {token_ctx} after {job.attempts} rate limit retries ({_CONSECUTIVE_RATE_LIMITS} consecutive)", "ERROR")
+            log(f"Permanently failed posting {token_ctx} after {job.attempts} rate limit retries", "ERROR")
     except Exception as e:
         job.attempts += 1
         _m_inc(("jobs_retried_total", job.kind if job.kind in ("single","sweep") else "single"))
