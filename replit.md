@@ -140,6 +140,7 @@ Set these in the Replit Secrets or Environment Variables (not sensitive):
 ### Rate Limit Handling
 - `RATE_LIMIT_RETRY_DELAY_MINS` - Minutes to wait before retrying after Twitter rate limit (default: 15)
 - `RATE_LIMIT_MAX_RETRIES` - Max retry attempts for rate-limited tweets (default: 10)
+- `WEBHOOK_RATE_THRESHOLD` - Webhook arrival rate threshold to trigger throttling (default: 10 webhooks/min)
 
 ### Storage & Caching
 - `OUTPUT_DIR` - Directory for temporary images (default: ./out)
@@ -210,6 +211,14 @@ curl -X POST https://your-repl.replit.dev/debug/sweep
 ├── .gitignore          # Git ignore patterns
 └── out/                # Output directory for temporary images (created automatically)
 ```
+
+## Twitter Free Tier Limits
+
+- **500 posts per month** (17 per 24 hours)
+- **15 posts per 15-minute window** (per-window rate limit)
+- Bot includes progressive backoff: detects sustained rate limits and waits 1h → 4h → 12h to avoid burning through retries
+
+Upgrade to Basic tier ($200/mo): 10,000 posts per month (100 per 24 hours)
 
 ## Dependencies
 

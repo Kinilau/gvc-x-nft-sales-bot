@@ -89,9 +89,11 @@ JOB_QUEUE_MAX = int(os.environ.get("JOB_QUEUE_MAX", "200"))
 RATE_LIMIT_RETRY_DELAY_MINS = int(os.environ.get("RATE_LIMIT_RETRY_DELAY_MINS", "15"))
 RATE_LIMIT_MAX_RETRIES = int(os.environ.get("RATE_LIMIT_MAX_RETRIES", "10"))
 
-# Tweet throttling: max tweets per minute to avoid rate limits
-TWEETS_PER_MIN = int(os.environ.get("TWEETS_PER_MIN", "5"))  # ~300/hour, ~7200/day (safe under 1500/month)
-MIN_TWEET_INTERVAL_SECS = 60 / TWEETS_PER_MIN  # seconds between tweets
+# Webhook throttling: detect bursts that would exceed Twitter's 15 posts per 15min limit (Twitter free tier: 17/24hrs)
+# Only throttle if webhooks are arriving faster than we can post
+WEBHOOK_RATE_WINDOW_SECS = 60  # Rolling window to measure webhook rate
+WEBHOOK_RATE_THRESHOLD = 10  # If >10 webhooks/min expected, throttle to prevent burst
+MAX_TWEETS_PER_15MIN = 15  # Twitter's apparent per-window limit
 
 # Progressive backoff thresholds for sustained rate limits
 CONSECUTIVE_RATELIMIT_THRESHOLD = 3  # After 3 consecutive rate limits, apply progressive backoff
@@ -559,17 +561,6 @@ def upload_media_v11(auth: OAuth1, image_path: str) -> Optional[str]:
 
 def post_tweet_v2(auth: OAuth1, text: str, media_ids: Optional[List[str]], 
                   tagged_user_ids: Optional[List[str]] = None) -> bool:
-    global _LAST_TWEET_TIME
-    
-    # Enforce throttling: wait if needed to respect TWEETS_PER_MIN limit
-    with _RATE_LIMIT_LOCK:
-        now = time.time()
-        time_since_last = now - _LAST_TWEET_TIME
-        if time_since_last < MIN_TWEET_INTERVAL_SECS:
-            sleep_time = MIN_TWEET_INTERVAL_SECS - time_since_last
-            log(f"Throttling tweet (next in {sleep_time:.1f}s to maintain {TWEETS_PER_MIN} tweets/min)", "INFO")
-            time.sleep(sleep_time)
-    
     url = "https://api.twitter.com/2/tweets"
     payload: Dict[str, Any] = {"text": text}
     if media_ids:
@@ -1030,8 +1021,8 @@ _WORKERS: List[threading.Thread] = []
 # Rate limit & throttling tracking
 _RATE_LIMIT_LOCK = threading.Lock()
 _CONSECUTIVE_RATE_LIMITS = 0  # Counter for consecutive rate limit failures
-_LAST_TWEET_TIME = 0.0  # Timestamp of last successful tweet (for throttling)
 _PROGRESSIVE_BACKOFF_LEVEL = 0  # 0=normal, 1=1h, 2=4h, 3=12h
+_WEBHOOK_TIMES = []  # Rolling list of webhook arrival times for burst detection
 
 def _push_job(job: PostJob) -> bool:
     try:
@@ -1064,7 +1055,7 @@ def _get_job_token_context(job: PostJob) -> str:
         return ""
 
 def _run_job(job: PostJob):
-    global _CONSECUTIVE_RATE_LIMITS, _PROGRESSIVE_BACKOFF_LEVEL, _LAST_TWEET_TIME
+    global _CONSECUTIVE_RATE_LIMITS, _PROGRESSIVE_BACKOFF_LEVEL
     try:
         if job.kind == "single":
             post_single_sale(**job.data)
@@ -1072,14 +1063,12 @@ def _run_job(job: PostJob):
             with _RATE_LIMIT_LOCK:
                 _CONSECUTIVE_RATE_LIMITS = 0
                 _PROGRESSIVE_BACKOFF_LEVEL = 0
-                _LAST_TWEET_TIME = time.time()
         elif job.kind == "sweep":
             post_sweep(**job.data)
             _m_inc(("jobs_processed_total","sweep"))
             with _RATE_LIMIT_LOCK:
                 _CONSECUTIVE_RATE_LIMITS = 0
                 _PROGRESSIVE_BACKOFF_LEVEL = 0
-                _LAST_TWEET_TIME = time.time()
         else:
             log(f"unknown job kind: {job.kind}", "WARN")
     except RateLimitError as e:
