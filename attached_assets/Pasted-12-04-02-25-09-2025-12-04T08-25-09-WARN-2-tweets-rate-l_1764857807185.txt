@@ -1,0 +1,37 @@
+12-04 02:25:09
+[2025-12-04T08:25:09] [WARN] /2/tweets rate limited [429], resets at 2025-12-04 08:40:05 UTC: {"title":"Too Many Requests","detail":"Too Many Requests","type":"about:blank","status":429}
+12-04 02:25:09
+[2025-12-04T08:25:09] [WARN] Rate limited posting #788, #3006, #4142 (sweep), will retry after 2025-12-04 08:40:05 UTC (~15.0 min wait, attempt 7/10)
+12-04 02:40:10
+[2025-12-04T08:40:10] [INFO] No image in Moralis metadata for 0xb8ea78fcacef50d41375e44e6814ebba36bb33c4 #788, trying Alchemy fallback
+12-04 02:40:10
+[2025-12-04T08:40:10] [INFO] No image in Moralis metadata for 0xb8ea78fcacef50d41375e44e6814ebba36bb33c4 #3006, trying Alchemy fallback
+12-04 02:40:10
+[2025-12-04T08:40:10] [INFO] No image in Moralis metadata for 0xb8ea78fcacef50d41375e44e6814ebba36bb33c4 #4142, trying Alchemy fallback
+12-04 02:40:15
+[2025-12-04T08:40:15] [WARN] Rate limited posting #788, #3006, #4142 (sweep), will retry after 2025-12-04 08:55:12 UTC (~15.0 min wait, attempt 8/10)
+12-04 02:40:15
+[2025-12-04T08:40:15] [WARN] /2/tweets rate limited [429], resets at 2025-12-04 08:55:12 UTC: {"title":"Too Many Requests","detail":"Too Many Requests","type":"about:blank","status":429}
+12-04 02:55:17
+[2025-12-04T08:55:17] [INFO] No image in Moralis metadata for 0xb8ea78fcacef50d41375e44e6814ebba36bb33c4 #788, trying Alchemy fallback
+12-04 02:55:17
+[2025-12-04T08:55:17] [INFO] No image in Moralis metadata for 0xb8ea78fcacef50d41375e44e6814ebba36bb33c4 #3006, trying Alchemy fallback
+12-04 02:55:17
+[2025-12-04T08:55:17] [INFO] No image in Moralis metadata for 0xb8ea78fcacef50d41375e44e6814ebba36bb33c4 #4142, trying Alchemy fallback
+12-04 02:55:22
+[2025-12-04T08:55:22] [WARN] Rate limited posting #788, #3006, #4142 (sweep), will retry after 2025-12-04 09:10:19 UTC (~15.0 min wait, attempt 9/10)
+12-04 02:55:22
+[2025-12-04T08:55:22] [WARN] /2/tweets rate limited [429], resets at 2025-12-04 09:10:19 UTC: {"title":"Too Many Requests","detail":"Too Many Requests","type":"about:blank","status":429}
+12-04 03:10:24
+[2025-12-04T09:10:24] [INFO] No image in Moralis metadata for 0xb8ea78fcacef50d41375e44e6814ebba36bb33c4 #788, trying Alchemy fallback
+12-04 03:10:24
+[2025-12-04T09:10:24] [INFO] No image in Moralis metadata for 0xb8ea78fcacef50d41375e44e6814ebba36bb33c4 #3006, trying Alchemy fallback
+
+12-04 03:10:24
+[2025-12-04T09:10:24] [INFO] No image in Moralis metadata for 0xb8ea78fcacef50d41375e44e6814ebba36bb33c4 #4142, trying Alchemy fallback
+12-04 03:10:29
+[2025-12-04T09:10:29] [WARN] /2/tweets rate limited [429], resets at 2025-12-04 09:25:26 UTC: {"title":"Too Many Requests","detail":"Too Many Requests","type":"about:blank","status":429}
+12-04 03:10:29
+[2025-12-04T09:10:29] [ERROR] Permanently failed posting #788, #3006, #4142 after 10 rate limit retries
+12-04 03:54:19
+[2025-12-04T09:54:19] [INFO] skip
