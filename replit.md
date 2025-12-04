@@ -214,11 +214,13 @@ curl -X POST https://your-repl.replit.dev/debug/sweep
 
 ## Twitter Free Tier Limits
 
-- **500 posts per month** (17 per 24 hours)
-- **15 posts per 15-minute window** (per-window rate limit)
-- Bot includes progressive backoff: detects sustained rate limits and waits 1h → 4h → 12h to avoid burning through retries
+- **17 tweets per 24 hours** (strictest limit for posting)
+- **~500 posts per month** (when spread evenly, enforced across calendar month)
+- Rate limit resets trigger HTTP 429 with `x-rate-limit-reset` header indicating exact reset time
+- Bot includes progressive backoff: detects sustained rate limits (3+ consecutive failures) and escalates wait times (1h → 4h → 12h) instead of burning through 10 retries in 2.5 hours
+- Most other endpoints: 1 request per 15 minutes
 
-Upgrade to Basic tier ($200/mo): 10,000 posts per month (100 per 24 hours)
+Upgrade to Basic tier ($200/mo): ~10,000-15,000 posts per month with higher per-window rates
 
 ## Dependencies
 
