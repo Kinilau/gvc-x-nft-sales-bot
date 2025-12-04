@@ -1123,11 +1123,23 @@ def _run_job(job: PostJob):
         # Check if the 24-hour daily cap is hit
         is_daily_hit, secs_until_reset = _is_daily_limit_hit()
         
-        if is_daily_hit and secs_until_reset is not None:
-            # Daily limit exhausted - don't retry, just wait until window resets
-            reset_time = time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime(time.time() + secs_until_reset))
-            log(f"Daily limit hit posting {token_ctx}, daily quota exhausted (17/24h), waiting until {reset_time}", "WARN")
-            time.sleep(secs_until_reset)
+        # Check if we're pre-deployment (no tweet tracking yet) but getting sustained 429s
+        # This means the daily limit was likely already hit before code deployed
+        used, oldest = _get_daily_quota_used()
+        is_likely_daily_exhausted = (used == 0 and _CONSECUTIVE_RATE_LIMITS >= 3)
+        
+        if (is_daily_hit and secs_until_reset is not None) or is_likely_daily_exhausted:
+            # Daily limit exhausted - don't retry, estimate reset time
+            if secs_until_reset is not None:
+                reset_time = time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime(time.time() + secs_until_reset))
+                log(f"Daily limit hit posting {token_ctx}, daily quota exhausted (17/24h), waiting until {reset_time}", "WARN")
+                time.sleep(secs_until_reset)
+            else:
+                # Emergency mode: 3+ consecutive 429s with no tracked tweets = pre-existing daily limit
+                # Conservative estimate: wait ~23 hours for next day
+                reset_time = time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime(time.time() + 23*60*60))
+                log(f"Daily limit likely exhausted (pre-deployment), {_CONSECUTIVE_RATE_LIMITS} consecutive 429s detected, waiting until {reset_time}", "WARN")
+                time.sleep(23 * 60 * 60)
             _push_job(job)
         elif job.attempts < RATE_LIMIT_MAX_RETRIES:
             # Per-window rate limit (15-min) - use progressive backoff for sustained limits
