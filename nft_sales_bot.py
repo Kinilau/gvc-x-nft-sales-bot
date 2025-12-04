@@ -89,6 +89,14 @@ JOB_QUEUE_MAX = int(os.environ.get("JOB_QUEUE_MAX", "200"))
 RATE_LIMIT_RETRY_DELAY_MINS = int(os.environ.get("RATE_LIMIT_RETRY_DELAY_MINS", "15"))
 RATE_LIMIT_MAX_RETRIES = int(os.environ.get("RATE_LIMIT_MAX_RETRIES", "10"))
 
+# Tweet throttling: max tweets per minute to avoid rate limits
+TWEETS_PER_MIN = int(os.environ.get("TWEETS_PER_MIN", "5"))  # ~300/hour, ~7200/day (safe under 1500/month)
+MIN_TWEET_INTERVAL_SECS = 60 / TWEETS_PER_MIN  # seconds between tweets
+
+# Progressive backoff thresholds for sustained rate limits
+CONSECUTIVE_RATELIMIT_THRESHOLD = 3  # After 3 consecutive rate limits, apply progressive backoff
+PROGRESSIVE_BACKOFF_DELAYS = [60*60, 4*60*60, 12*60*60]  # 1h, 4h, 12h
+
 # Parallelism inside a job
 UPLOAD_THREADS = int(os.environ.get("UPLOAD_THREADS", "4"))     # ≤ 4 media per tweet
 DOWNLOAD_THREADS = int(os.environ.get("DOWNLOAD_THREADS", "6")) # per-collage image fetch
@@ -551,6 +559,17 @@ def upload_media_v11(auth: OAuth1, image_path: str) -> Optional[str]:
 
 def post_tweet_v2(auth: OAuth1, text: str, media_ids: Optional[List[str]], 
                   tagged_user_ids: Optional[List[str]] = None) -> bool:
+    global _LAST_TWEET_TIME
+    
+    # Enforce throttling: wait if needed to respect TWEETS_PER_MIN limit
+    with _RATE_LIMIT_LOCK:
+        now = time.time()
+        time_since_last = now - _LAST_TWEET_TIME
+        if time_since_last < MIN_TWEET_INTERVAL_SECS:
+            sleep_time = MIN_TWEET_INTERVAL_SECS - time_since_last
+            log(f"Throttling tweet (next in {sleep_time:.1f}s to maintain {TWEETS_PER_MIN} tweets/min)", "INFO")
+            time.sleep(sleep_time)
+    
     url = "https://api.twitter.com/2/tweets"
     payload: Dict[str, Any] = {"text": text}
     if media_ids:
@@ -1008,6 +1027,12 @@ class PostJob:
 JOB_Q: "queue.Queue[PostJob]" = queue.Queue(maxsize=JOB_QUEUE_MAX)
 _WORKERS: List[threading.Thread] = []
 
+# Rate limit & throttling tracking
+_RATE_LIMIT_LOCK = threading.Lock()
+_CONSECUTIVE_RATE_LIMITS = 0  # Counter for consecutive rate limit failures
+_LAST_TWEET_TIME = 0.0  # Timestamp of last successful tweet (for throttling)
+_PROGRESSIVE_BACKOFF_LEVEL = 0  # 0=normal, 1=1h, 2=4h, 3=12h
+
 def _push_job(job: PostJob) -> bool:
     try:
         JOB_Q.put_nowait(job)
@@ -1039,36 +1064,64 @@ def _get_job_token_context(job: PostJob) -> str:
         return ""
 
 def _run_job(job: PostJob):
+    global _CONSECUTIVE_RATE_LIMITS, _PROGRESSIVE_BACKOFF_LEVEL, _LAST_TWEET_TIME
     try:
         if job.kind == "single":
             post_single_sale(**job.data)
             _m_inc(("jobs_processed_total","single"))
+            with _RATE_LIMIT_LOCK:
+                _CONSECUTIVE_RATE_LIMITS = 0
+                _PROGRESSIVE_BACKOFF_LEVEL = 0
+                _LAST_TWEET_TIME = time.time()
         elif job.kind == "sweep":
             post_sweep(**job.data)
             _m_inc(("jobs_processed_total","sweep"))
+            with _RATE_LIMIT_LOCK:
+                _CONSECUTIVE_RATE_LIMITS = 0
+                _PROGRESSIVE_BACKOFF_LEVEL = 0
+                _LAST_TWEET_TIME = time.time()
         else:
             log(f"unknown job kind: {job.kind}", "WARN")
     except RateLimitError as e:
         job.attempts += 1
         _m_inc(("jobs_retried_total", job.kind if job.kind in ("single","sweep") else "single"))
         token_ctx = _get_job_token_context(job)
+        
+        with _RATE_LIMIT_LOCK:
+            _CONSECUTIVE_RATE_LIMITS += 1
+            # After threshold, escalate backoff level
+            if _CONSECUTIVE_RATE_LIMITS >= CONSECUTIVE_RATELIMIT_THRESHOLD:
+                _PROGRESSIVE_BACKOFF_LEVEL = min(len(PROGRESSIVE_BACKOFF_DELAYS), (_CONSECUTIVE_RATE_LIMITS - CONSECUTIVE_RATELIMIT_THRESHOLD) // 2)
+        
         if job.attempts < RATE_LIMIT_MAX_RETRIES:
-            # Use X-RateLimit-Reset header if available, otherwise fall back to fixed delay
-            if e.reset_at:
+            # Determine delay: use progressive backoff if sustained, else X-RateLimit-Reset or default
+            delay_secs = None
+            msg_reason = ""
+            
+            if _PROGRESSIVE_BACKOFF_LEVEL > 0 and _CONSECUTIVE_RATE_LIMITS >= CONSECUTIVE_RATELIMIT_THRESHOLD:
+                # Sustained rate limit detected - use progressive backoff
+                idx = min(_PROGRESSIVE_BACKOFF_LEVEL - 1, len(PROGRESSIVE_BACKOFF_DELAYS) - 1)
+                delay_secs = PROGRESSIVE_BACKOFF_DELAYS[idx]
+                delay_label = ["1h", "4h", "12h"][idx]
+                msg_reason = f"sustained limit (consecutive: {_CONSECUTIVE_RATE_LIMITS}), backing off {delay_label}"
+            elif e.reset_at:
+                # Use Twitter's reset time
                 now = int(time.time())
-                delay_secs = max(60, e.reset_at - now + 5)  # Wait until reset + 5 sec buffer, min 60 sec
-                delay_mins = delay_secs / 60.0
+                delay_secs = max(60, e.reset_at - now + 5)
                 reset_time = time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime(e.reset_at))
-                log(f"Rate limited posting {token_ctx} ({job.kind}), will retry after {reset_time} (~{delay_mins:.1f} min wait, attempt {job.attempts}/{RATE_LIMIT_MAX_RETRIES})", "WARN")
+                msg_reason = f"reset at {reset_time} (~{delay_secs/60.0:.1f} min wait)"
             else:
-                # Fallback to configured delay if no reset header
+                # Fallback to configured delay
                 delay_secs = RATE_LIMIT_RETRY_DELAY_MINS * 60
-                log(f"Rate limited posting {token_ctx} ({job.kind}), will retry in {RATE_LIMIT_RETRY_DELAY_MINS} min (attempt {job.attempts}/{RATE_LIMIT_MAX_RETRIES})", "WARN")
-            time.sleep(delay_secs)
-            _push_job(job)
+                msg_reason = f"fallback wait {RATE_LIMIT_RETRY_DELAY_MINS} min"
+            
+            if delay_secs:
+                log(f"Rate limited posting {token_ctx} ({job.kind}), {msg_reason}, attempt {job.attempts}/{RATE_LIMIT_MAX_RETRIES}", "WARN")
+                time.sleep(delay_secs)
+                _push_job(job)
         else:
             _m_inc(("jobs_failed_total", job.kind if job.kind in ("single","sweep") else "single"))
-            log(f"Permanently failed posting {token_ctx} after {job.attempts} rate limit retries", "ERROR")
+            log(f"Permanently failed posting {token_ctx} after {job.attempts} rate limit retries ({_CONSECUTIVE_RATE_LIMITS} consecutive)", "ERROR")
     except Exception as e:
         job.attempts += 1
         _m_inc(("jobs_retried_total", job.kind if job.kind in ("single","sweep") else "single"))

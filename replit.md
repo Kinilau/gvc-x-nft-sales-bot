@@ -6,7 +6,11 @@ An automated NFT sales bot that monitors blockchain transactions via Moralis web
 
 **Current State**: Fully configured and running in Replit environment. The Flask server is listening on port 5000 and ready to receive webhook events from Moralis.
 
-## Recent Changes (November 13, 2025)
+## Recent Changes (December 4, 2025)
+
+- **Progressive backoff + tweet throttling** - Bot now detects sustained rate limits (3+ consecutive failures) and applies progressive backoff (1h → 4h → 12h) instead of burning through retries. Also added tweet throttling to enforce max 5 tweets/min (~300/hour, ~7200/day) to prevent hitting rate limits in the first place.
+
+## Previous Changes (November 13, 2025)
 
 - **Smart rate limit handling with X-RateLimit-Reset** - Bot now reads Twitter's `X-RateLimit-Reset` header to determine exact retry time instead of blindly waiting 15 minutes. This prevents compounding rate limit issues and respects Twitter's actual rate limit windows. Logs now show the exact reset time (e.g., "retrying after reset at 2025-11-13 12:30:00 UTC").
 
